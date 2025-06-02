@@ -115,7 +115,7 @@ if "copied_chat_history" not in st.session_state:
 # 2-3) CompletionExecutor 인스턴스 생성 (API 키와 REQUEST ID는 “원래 거”로 세팅)
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
-    api_key='nv-1bd16644b47f4a45ba6b28b0d541f98bGsX6',         # ← 원래 사용 중인 API 키
+    api_key='Bearer <nv-1bd16644b47f4a45ba6b28b0d541f98bGsX6>' # ← 원래 사용 중인  api key
     request_id='ae8ae04eb84448d29c570d4dd54255cc'              # ← 원래 사용 중인 REQUEST ID
 )
 
