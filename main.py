@@ -92,7 +92,7 @@ completion_executor = CompletionExecutor(
     request_id='d1950869-54c9-4bb8-988d-6967d113e03f'
 )
 
-st.markdown('<h1 class="title">지렁이 챗봇</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="title">마이 차일드</h1>', unsafe_allow_html=True)
 bot_profile_url = selected_image
 
 st.markdown(f"""
