@@ -33,7 +33,6 @@ if "input_message" not in st.session_state:
 if "copied_chat_history" not in st.session_state:
     st.session_state.copied_chat_history = ""
 
-# 여기서부터 새로운 CompletionExecutor
 class CompletionExecutor:
     def __init__(self, host, api_key, request_id):
         self._host = host
@@ -55,13 +54,17 @@ class CompletionExecutor:
             stream=True
         ) as r:
             response_data = r.content.decode('utf-8')
+            print('====response_data====')
+            print(response_data)
             lines = response_data.split("\n")
             json_data = None
+            # 최신 이벤트 스트림 패턴 대응
             for i, line in enumerate(lines):
                 if line.startswith("event:result"):
-                    next_line = lines[i + 1]
-                    json_data = next_line[5:]
-                    break
+                    # 다음 줄이 data:로 시작하면 파싱
+                    if i+1 < len(lines) and lines[i+1].startswith("data:"):
+                        json_data = lines[i+1][5:]
+                        break
             if json_data:
                 try:
                     chat_data = json.loads(json_data)
@@ -69,11 +72,12 @@ class CompletionExecutor:
                         {"role": "assistant", "content": chat_data["message"]["content"]}
                     )
                 except json.JSONDecodeError as e:
+                    st.warning(f"JSONDecodeError: {e}")
                     print("JSONDecodeError:", e)
             else:
+                st.warning("JSON 데이터가 없습니다.\n아래 서버 응답을 확인하세요.")
                 print("JSON 데이터가 없습니다.")
 
-# API KEY 및 Request ID는 여기에 입력
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
     api_key='nv-1bd16644b47f4a45ba6b28b0d541f98bGsX6',
