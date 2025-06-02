@@ -3,16 +3,25 @@ import requests
 import json
 import random
 
+# 프로필 이미지 리스트
 image_urls = [
     "https://th.bing.com/th/id/OIG4.sbvsXcpjpETlz2LO_4g6?w=1024&h=1024&rs=1&pid=ImgDetMain",
-    # ... (생략: 나머지 이미지 URL)
+    "https://th.bing.com/th/id/OIG4.sbvsXcpjpETlz2LO_4g6?w=1024&h=1024&rs=1&pid=ImgDetMain",
+    "https://th.bing.com/th/id/OIG4.fmafTjPZwEX17n9E4H49?pid=ImgGn",
+    "https://th.bing.com/th/id/OIG4.fmafTjPZwEX17n9E4H49?pid=ImgGn",
+    "https://th.bing.com/th/id/OIG4.0ugOUMKI2F1pZFRxpgfU?pid=ImgGn",
+    "https://th.bing.com/th/id/OIG4.0ugOUMKI2F1pZFRxpgfU?pid=ImgGn",
+    "https://th.bing.com/th/id/OIG4.fD.2uF_znryBJ9P_dlkH?pid=ImgGn",
+    "https://th.bing.com/th/id/OIG4.fD.2uF_znryBJ9P_dlkH?pid=ImgGn",
+    "https://th.bing.com/th/id/OIG3.fppMpx_V9bOB3msD.EbQ?w=1024&h=1024&rs=1&pid=ImgDetMain",
+    "https://th.bing.com/th/id/OIG3.dMg4p1gEo.bpqfkgQyQr?w=1024&h=1024&rs=1&pid=ImgDetMain"
 ]
 
 if "selected_image" not in st.session_state:
     st.session_state.selected_image = random.choice(image_urls)
-
 selected_image = st.session_state.selected_image
 
+# 대화 히스토리(8살 규칙)
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
         {
@@ -28,10 +37,8 @@ if "chat_history" not in st.session_state:
         },
         {'role': 'assistant', 'content': '알겠어. 나는 8살이고 초등학교에 입학한 상태야.'}
     ]
-
 if "input_message" not in st.session_state:
     st.session_state.input_message = ""
-
 if "copied_chat_history" not in st.session_state:
     st.session_state.copied_chat_history = ""
 
@@ -43,20 +50,19 @@ class CompletionExecutor:
 
     def execute(self, completion_request):
         headers = {
-            'Authorization': self._api_key,
+            'Authorization': self._api_key,  # 반드시 'Bearer '를 포함한 전체값 입력
             'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,
             'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'text/event-stream'
         }
-
-        # HCX-005 엔드포인트 사용
+        # HCX-005 v3 엔드포인트 사용
         with requests.post(
             self._host + '/testapp/v3/chat-completions/HCX-005',
             headers=headers,
             json=completion_request,
             stream=True
         ) as r:
-            # 전체 response에서 'data:' 포함된 line만 파싱
+            # 결과를 파싱해 chat_history에 추가
             for line in r.iter_lines():
                 if line:
                     decoded_line = line.decode("utf-8")
@@ -72,11 +78,164 @@ class CompletionExecutor:
                         except Exception as e:
                             print("Error parsing line:", e)
 
+# 여기에 본인 키와 리퀘스트ID 입력
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
-    api_key='Bearer <api-key>',  # 기존 방식과 다르게 "Bearer " 붙임
-    request_id='6503f038e6804bdfadd5aa2f64cccb6f'  # 본인 request_id
+    api_key='NTA0MjU2MWZlZTcxNDJiY6Yo7+BLuaAQ2B5+PgEazGquXEqiIf8NRhOG34cVQNdq',
+    api_key_primary_val='DilhGClorcZK5OTo1QgdfoDQnBNOkNaNksvlAVFE',
+    request_id='d1950869-54c9-4bb8-988d-6967d113e03f'
 )
 
-# 이하 Streamlit UI 코드는 기존과 동일하게 사용!
-# (코드가 길어 아래는 생략. 앞서 제공한 Streamlit UI 코드 붙여서 사용)
+# ------ Streamlit UI 영역 ------
+st.markdown('<h1 class="title">8살 지능 챗봇</h1>', unsafe_allow_html=True)
+bot_profile_url = selected_image
+
+st.markdown(f"""
+    <style>
+    body, .main, .block-container {{
+        background-color: #BACEE0 !important;
+    }}
+    .title {{
+        font-size: 28px !important;
+        font-weight: bold;
+        text-align: center;
+        padding-top: 10px;
+    }}
+    .message-container {{
+        display: flex;
+        margin-bottom: 10px;
+        align-items: center;
+    }}
+    .message-user {{
+        background-color: #FFEB33 !important;
+        color: black;
+        text-align: right;
+        padding: 10px;
+        border-radius: 10px;
+        margin-left: auto;
+        max-width: 60%;
+        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+    }}
+    .message-assistant {{
+        background-color: #FFFFFF !important;
+        text-align: left;
+        padding: 10px;
+        border-radius: 10px;
+        margin-right: auto;
+        max-width: 60%;
+        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+    }}
+    .profile-pic {{
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-right: 10px;
+    }}
+    .chat-box {{
+        background-color: #BACEE0 !important;
+        border: none;
+        padding: 20px;
+        border-radius: 10px;
+        max-height: 400px;
+        overflow-y: scroll;
+        margin: 0 auto;
+        width: 80%;
+    }}
+    .stTextInput > div > div > input {{
+        height: 38px;
+        width: 100%;
+    }}
+    .stButton button {{
+        height: 38px !important;
+        width: 70px !important;
+        padding: 0px 10px;
+        margin-right: 0px !important;
+    }}
+    .input-container {{
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background-color: #BACEE0;
+        padding: 10px;
+        box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+    }}
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="chat-box">', unsafe_allow_html=True)
+
+def send_message():
+    if st.session_state.input_message:
+        user_message = st.session_state.input_message
+        st.session_state.chat_history.append({"role": "user", "content": user_message})
+        completion_request = {
+            'messages': st.session_state.chat_history,
+            'topP': 0.8,
+            'topK': 0,
+            'maxTokens': 256,
+            'temperature': 0.7,
+            'repeatPenalty': 1.2,
+            'stopBefore': [],
+            'includeAiFilters': True,
+            'seed': 0
+        }
+        completion_executor.execute(completion_request)
+        st.session_state.input_message = ""
+
+for message in st.session_state.chat_history[2:]:
+    role = "User" if message["role"] == "user" else "Chatbot"
+    profile_url = bot_profile_url if role == "Chatbot" else None
+    message_class = 'message-user' if role == "User" else 'message-assistant'
+    if role == "Chatbot":
+        st.markdown(f'''
+            <div class="message-container">
+                <img src="{profile_url}" class="profile-pic" alt="프로필 이미지">
+                <div class="{message_class}">
+                    {message["content"]}
+                </div>
+            </div>''', unsafe_allow_html=True)
+    else:
+        st.markdown(f'''
+            <div class="message-container">
+                <div class="{message_class}">
+                    {message["content"]}
+                </div>
+            </div>''', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('<div class="input-container">', unsafe_allow_html=True)
+with st.form(key="input_form", clear_on_submit=True):
+    cols = st.columns([7.5, 1, 1])
+    with cols[0]:
+        user_message = st.text_input("메시지를 입력하세요:", key="input_message", placeholder="")
+    with cols[1]:
+        submit_button = st.form_submit_button(label="전송", on_click=send_message)
+    with cols[2]:
+        def copy_chat_history():
+            filtered_chat_history = [
+                msg for msg in st.session_state.chat_history[2:]
+            ]
+            chat_history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in filtered_chat_history])
+            st.session_state.copied_chat_history = chat_history_text
+        copy_button = st.form_submit_button(label="복사", on_click=copy_chat_history)
+st.markdown('</div>', unsafe_allow_html=True)
+
+if st.session_state.copied_chat_history:
+    st.markdown("<h3>대화 내용 정리</h3>", unsafe_allow_html=True)
+    st.text_area("", value=st.session_state.copied_chat_history, height=200, key="copied_chat_history_text_area")
+    chat_history = st.session_state.copied_chat_history.replace("\n", "\\n").replace('"', '\\"')
+    st.components.v1.html(f"""
+        <textarea id="copied_chat_history_text_area" style="display:none;">{chat_history}</textarea>
+        <button onclick="copyToClipboard()" class="copy-button">클립보드로 복사</button>
+        <script>
+        function copyToClipboard() {{
+            var text = document.getElementById('copied_chat_history_text_area').value.replace(/\\\\n/g, '\\n');
+            navigator.clipboard.writeText(text).then(function() {{
+                alert('클립보드로 복사되었습니다!');
+            }}, function(err) {{
+                console.error('복사 실패: ', err);
+            }});
+        }}
+        </script>
+    """, height=100)
