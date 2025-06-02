@@ -3,7 +3,6 @@ import requests
 import json
 import random
 
-# 프로필 이미지 리스트
 image_urls = [
     "https://th.bing.com/th/id/OIG4.sbvsXcpjpETlz2LO_4g6?w=1024&h=1024&rs=1&pid=ImgDetMain",
     "https://th.bing.com/th/id/OIG4.sbvsXcpjpETlz2LO_4g6?w=1024&h=1024&rs=1&pid=ImgDetMain",
@@ -19,9 +18,10 @@ image_urls = [
 
 if "selected_image" not in st.session_state:
     st.session_state.selected_image = random.choice(image_urls)
+
 selected_image = st.session_state.selected_image
 
-# 대화 히스토리(8살 규칙)
+# ** 여기만 바뀜 **
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
         {
@@ -37,48 +37,54 @@ if "chat_history" not in st.session_state:
         },
         {'role': 'assistant', 'content': '알겠어. 나는 8살이고 초등학교에 입학한 상태야.'}
     ]
+
 if "input_message" not in st.session_state:
     st.session_state.input_message = ""
+
 if "copied_chat_history" not in st.session_state:
     st.session_state.copied_chat_history = ""
 
 class CompletionExecutor:
-    def __init__(self, host, api_key, request_id):
+    def __init__(self, host, api_key, api_key_primary_val, request_id):
         self._host = host
         self._api_key = api_key
+        self._api_key_primary_val = api_key_primary_val
         self._request_id = request_id
 
     def execute(self, completion_request):
         headers = {
-            'Authorization': self._api_key,  # 반드시 'Bearer '를 포함한 전체값 입력
+            'X-NCP-CLOVASTUDIO-API-KEY': self._api_key,
+            'X-NCP-APIGW-API-KEY': self._api_key_primary_val,
             'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,
             'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'text/event-stream'
         }
-        # HCX-005 v3 엔드포인트 사용
+
         with requests.post(
-            self._host + '/testapp/v3/chat-completions/HCX-005',
+            self._host + '/testapp/v1/chat-completions/HCX-003',
             headers=headers,
             json=completion_request,
             stream=True
         ) as r:
-            # 결과를 파싱해 chat_history에 추가
-            for line in r.iter_lines():
-                if line:
-                    decoded_line = line.decode("utf-8")
-                    if decoded_line.startswith("data:"):
-                        data_str = decoded_line[5:]
-                        try:
-                            data = json.loads(data_str)
-                            msg = data.get("message", {}).get("content", "")
-                            if msg:
-                                st.session_state.chat_history.append(
-                                    {"role": "assistant", "content": msg}
-                                )
-                        except Exception as e:
-                            print("Error parsing line:", e)
+            response_data = r.content.decode('utf-8')
+            lines = response_data.split("\n")
+            json_data = None
+            for i, line in enumerate(lines):
+                if line.startswith("event:result"):
+                    next_line = lines[i + 1]
+                    json_data = next_line[5:]
+                    break
+            if json_data:
+                try:
+                    chat_data = json.loads(json_data)
+                    st.session_state.chat_history.append(
+                        {"role": "assistant", "content": chat_data["message"]["content"]}
+                    )
+                except json.JSONDecodeError as e:
+                    print("JSONDecodeError:", e)
+            else:
+                print("JSON 데이터가 없습니다.")
 
-# 여기에 본인 키와 리퀘스트ID 입력
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
     api_key='NTA0MjU2MWZlZTcxNDJiY6Yo7+BLuaAQ2B5+PgEazGquXEqiIf8NRhOG34cVQNdq',
@@ -86,8 +92,7 @@ completion_executor = CompletionExecutor(
     request_id='d1950869-54c9-4bb8-988d-6967d113e03f'
 )
 
-# ------ Streamlit UI 영역 ------
-st.markdown('<h1 class="title">8살 지능 챗봇</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="title">지렁이 챗봇</h1>', unsafe_allow_html=True)
 bot_profile_url = selected_image
 
 st.markdown(f"""
@@ -169,6 +174,7 @@ def send_message():
     if st.session_state.input_message:
         user_message = st.session_state.input_message
         st.session_state.chat_history.append({"role": "user", "content": user_message})
+
         completion_request = {
             'messages': st.session_state.chat_history,
             'topP': 0.8,
@@ -180,6 +186,7 @@ def send_message():
             'includeAiFilters': True,
             'seed': 0
         }
+
         completion_executor.execute(completion_request)
         st.session_state.input_message = ""
 
@@ -187,6 +194,7 @@ for message in st.session_state.chat_history[2:]:
     role = "User" if message["role"] == "user" else "Chatbot"
     profile_url = bot_profile_url if role == "Chatbot" else None
     message_class = 'message-user' if role == "User" else 'message-assistant'
+
     if role == "Chatbot":
         st.markdown(f'''
             <div class="message-container">
@@ -202,6 +210,7 @@ for message in st.session_state.chat_history[2:]:
                     {message["content"]}
                 </div>
             </div>''', unsafe_allow_html=True)
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="input-container">', unsafe_allow_html=True)
@@ -218,6 +227,7 @@ with st.form(key="input_form", clear_on_submit=True):
             ]
             chat_history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in filtered_chat_history])
             st.session_state.copied_chat_history = chat_history_text
+
         copy_button = st.form_submit_button(label="복사", on_click=copy_chat_history)
 st.markdown('</div>', unsafe_allow_html=True)
 
