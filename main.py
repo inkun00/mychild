@@ -3,6 +3,61 @@ import requests
 import json
 import random
 
+# (생략) image_urls, session_state 초기화 등 기존 코드와 동일
+
+class CompletionExecutor:
+    def __init__(self, host, api_key, request_id):
+        self._host = host
+        self._api_key = api_key
+        self._request_id = request_id
+
+    def execute(self, completion_request):
+        headers = {
+            'Authorization': self._api_key,
+            'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,
+            'Content-Type': 'application/json; charset=utf-8',
+            'Accept': 'text/event-stream'
+        }
+
+        with requests.post(
+            self._host + '/testapp/v3/chat-completions/HCX-005',
+            headers=headers,
+            json=completion_request,
+            stream=True
+        ) as r:
+            if r.status_code != 200:
+                st.warning(f"서버 응답이 성공적이지 않습니다. 상태 코드: {r.status_code}")
+                return
+
+            buffer_json = None
+            for raw_line in r.iter_lines(decode_unicode=True):
+                if raw_line is None:
+                    continue
+                line = raw_line.strip()
+                
+                if line == "data: [DONE]":
+                    break
+
+                if line.startswith("data: "):
+                    json_str = line[len("data: "):]
+                    try:
+                        chat_data = json.loads(json_str)
+                        buffer_json = chat_data
+                    except json.JSONDecodeError as e:
+                        st.warning(f"일부 응답(JSON) 파싱 실패: {e}")
+                        continue
+
+            if buffer_json and "message" in buffer_json and "content" in buffer_json["message"]:
+                content = buffer_json["message"]["content"]
+                st.session_state.chat_history.append(
+                    {"role": "assistant", "content": content}
+                )
+            else:
+                st.warning("JSON 데이터가 없습니다. 아래 서버 응답을 확인하세요.")
+
+# ------------------------------
+# Streamlit UI 코드 (기존 코드와 동일)
+
 image_urls = [
     "https://th.bing.com/th/id/OIG4.sbvsXcpjpETlz2LO_4g6?w=1024&h=1024&rs=1&pid=ImgDetMain",
     "https://th.bing.com/th/id/OIG4.sbvsXcpjpETlz2LO_4g6?w=1024&h=1024&rs=1&pid=ImgDetMain",
@@ -33,51 +88,7 @@ if "input_message" not in st.session_state:
 if "copied_chat_history" not in st.session_state:
     st.session_state.copied_chat_history = ""
 
-class CompletionExecutor:
-    def __init__(self, host, api_key, request_id):
-        self._host = host
-        self._api_key = api_key
-        self._request_id = request_id
-
-    def execute(self, completion_request):
-        headers = {
-            'Authorization': self._api_key,
-            'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,
-            'Content-Type': 'application/json; charset=utf-8',
-            'Accept': 'text/event-stream'
-        }
-
-        with requests.post(
-            self._host + '/testapp/v3/chat-completions/HCX-005',
-            headers=headers,
-            json=completion_request,
-            stream=True
-        ) as r:
-            response_data = r.content.decode('utf-8')
-            print('====response_data====')
-            print(response_data)
-            lines = response_data.split("\n")
-            json_data = None
-            # 최신 이벤트 스트림 패턴 대응
-            for i, line in enumerate(lines):
-                if line.startswith("event:result"):
-                    # 다음 줄이 data:로 시작하면 파싱
-                    if i+1 < len(lines) and lines[i+1].startswith("data:"):
-                        json_data = lines[i+1][5:]
-                        break
-            if json_data:
-                try:
-                    chat_data = json.loads(json_data)
-                    st.session_state.chat_history.append(
-                        {"role": "assistant", "content": chat_data["message"]["content"]}
-                    )
-                except json.JSONDecodeError as e:
-                    st.warning(f"JSONDecodeError: {e}")
-                    print("JSONDecodeError:", e)
-            else:
-                st.warning("JSON 데이터가 없습니다.\n아래 서버 응답을 확인하세요.")
-                print("JSON 데이터가 없습니다.")
-
+# CompletionExecutor 인스턴스 생성
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
     api_key='nv-1bd16644b47f4a45ba6b28b0d541f98bGsX6',
