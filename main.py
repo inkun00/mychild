@@ -1,35 +1,47 @@
-# -*- coding: utf-8 -*-
 import streamlit as st
 import requests
 import json
 import random
+import uuid  # 매 요청마다 새로운 UUID를 사용하기 위해 추가
 
 # ----------------------------------------
-# 1) CompletionExecutor (HCX-005 호출용 기본 코드)
+# 1) CompletionExecutor (디버깅용 로그 추가)
 # ----------------------------------------
 class CompletionExecutor:
-    def __init__(self, host, api_key, request_id):
+    def __init__(self, host, api_key):
         self._host = host
-        # API 키는 “Bearer ” 프리픽스 없이, 오직 순수 키 문자열만 저장
         self._api_key = api_key
-        self._request_id = request_id
 
     def execute(self, completion_request):
+        # 매 호출 시마다 새로운 request_id 생성
+        request_id = str(uuid.uuid4())
+
         headers = {
-            # Clova Studio HCX-005가 요구하는 전용 헤더로 API 키 전송
             'X-NCP-CLOVASTUDIO-API-KEY': self._api_key,
-            'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,
+            'X-NCP-CLOVASTUDIO-REQUEST-ID': request_id,
             'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'text/event-stream'
         }
 
-        # 실제 HCX-005 엔드포인트 호출 (stream=True 로 SSE 방식 수신)
+        # 호출 전에 로그 찍기 (Streamlit 콘솔 또는 터미널에서 확인 가능)
+        print("▶▶▶ 요청 URL:", self._host + '/testapp/v3/chat-completions/HCX-005')
+        print("▶▶▶ 헤더:", headers)
+        print("▶▶▶ 페이로드:", json.dumps(completion_request, ensure_ascii=False, indent=2))
+
         with requests.post(
             self._host + '/testapp/v3/chat-completions/HCX-005',
             headers=headers,
             json=completion_request,
             stream=True
         ) as r:
+            print("◀◀◀ 응답 상태 코드:", r.status_code)
+            # Response Body(짧은 길이만) 출력
+            try:
+                body_text = r.text[:1000]  # 최대 1000자까지만 잘라서 확인
+            except Exception as e:
+                body_text = f"<바디 읽기 실패: {e}>"
+            print("◀◀◀ 응답 바디(최대 1000자):", body_text)
+
             # HTTP 상태 코드 검사
             if r.status_code == 401:
                 st.warning("⚠️ 인증 오류 (401): API 키 혹은 REQUEST ID를 확인하세요.")
@@ -68,8 +80,9 @@ class CompletionExecutor:
             else:
                 st.warning("JSON 데이터가 없습니다. 아래 서버 응답을 확인하세요.")
 
+
 # ----------------------------------------
-# 2) Streamlit UI 설정
+# 2) Streamlit UI 설정 (나머지 코드는 동일)
 # ----------------------------------------
 
 # 2-1) 이미지 URL 목록 (로봇 프로필 사진 등)
@@ -92,7 +105,6 @@ if "selected_image" not in st.session_state:
 selected_image = st.session_state.selected_image
 
 if "chat_history" not in st.session_state:
-    # 초기 대화 히스토리 (system / assistant 첫 메시지)
     st.session_state.chat_history = [
         {
             'role': 'user',
@@ -114,11 +126,10 @@ if "input_message" not in st.session_state:
 if "copied_chat_history" not in st.session_state:
     st.session_state.copied_chat_history = ""
 
-# 2-3) CompletionExecutor 인스턴스 생성 (API 키와 REQUEST ID는 “원래 거”에서 순수 키로 변경)
+# 2-3) CompletionExecutor 인스턴스 생성 (API 키만 전달)
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
-    api_key='nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu',  # ← “Bearer ” 없이 실제 키만
-    request_id='b103b212f8db458989ff8d6a7d44eaa1'
+    api_key='nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu'  # 순수 키 문자열만 다시 한번 확인!
 )
 
 # 2-4) Streamlit 레이아웃/스타일 정의
