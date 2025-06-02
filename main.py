@@ -10,13 +10,15 @@ import random
 class CompletionExecutor:
     def __init__(self, host, api_key, request_id):
         self._host = host
+        # API 키는 “Bearer ” 프리픽스 없이, 오직 순수 키 문자열만 저장
         self._api_key = api_key
         self._request_id = request_id
 
     def execute(self, completion_request):
         headers = {
-            'Authorization': self._api_key,                     # 기존에 사용 중인 API 키
-            'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,   # 기존에 사용 중인 REQUEST ID
+            # Clova Studio HCX-005가 요구하는 전용 헤더로 API 키 전송
+            'X-NCP-CLOVASTUDIO-API-KEY': self._api_key,
+            'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,
             'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'text/event-stream'
         }
@@ -112,11 +114,11 @@ if "input_message" not in st.session_state:
 if "copied_chat_history" not in st.session_state:
     st.session_state.copied_chat_history = ""
 
-# 2-3) CompletionExecutor 인스턴스 생성 (API 키와 REQUEST ID는 “원래 거”로 세팅)
+# 2-3) CompletionExecutor 인스턴스 생성 (API 키와 REQUEST ID는 “원래 거”에서 순수 키로 변경)
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
-    api_key='Bearer <nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu>', # ← 원래 사용 중인  api key
-    request_id='b103b212f8db458989ff8d6a7d44eaa1'              # ← 원래 사용 중인 REQUEST ID
+    api_key='nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu',  # ← “Bearer ” 없이 실제 키만
+    request_id='b103b212f8db458989ff8d6a7d44eaa1'
 )
 
 # 2-4) Streamlit 레이아웃/스타일 정의
