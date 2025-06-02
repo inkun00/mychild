@@ -13,8 +13,7 @@ class CompletionExecutor:
         self._api_key = api_key
 
     def execute(self, completion_request):
-        # 매 호출 시마다 새로운 request_id 생성
-        request_id = str(uuid.uuid4())
+       
 
         headers = {
             'X-NCP-CLOVASTUDIO-API-KEY': self._api_key,
