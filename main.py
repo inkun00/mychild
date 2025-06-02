@@ -35,7 +35,7 @@ if "chat_history" not in st.session_state:
                 '5. 너에게 지적 수준이 어느 정도 되는지 물어보면 사용자가 알려준 지식을 평가해서 몇 살 정도의 지능이 되었는지 알려줘.'
             )
         },
-        {'role': 'assistant', 'content': '알겠어. 나는 8살이고 초등학교에 입학한 상태야.'}
+        {'role': 'assistant', 'content': '알겠어. 나는 8살이고 초등학교에 입학한 상태야. 난 아무것도 몰라.'}
     ]
 
 if "input_message" not in st.session_state:
