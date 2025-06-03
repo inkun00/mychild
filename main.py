@@ -5,7 +5,7 @@ import random
 import uuid  # 매 요청마다 새로운 UUID를 사용하기 위해 추가
 
 # ----------------------------------------
-# 1) CompletionExecutor (디버깅용 로그 및 상세 에러 출력 추가)
+# 1) CompletionExecutor (디버깅용 로그 및 st.warning 출력 추가)
 # ----------------------------------------
 class CompletionExecutor:
     def __init__(self, host, api_key, request_id):
@@ -32,55 +32,56 @@ class CompletionExecutor:
             json=completion_request,
             stream=True
         ) as r:
-            # 기본 상태 코드 출력
-            print("◀◀◀ 응답 상태 코드:", r.status_code)
+            status_code = r.status_code
+            # 먼저 상태 코드만 콘솔에 출력
+            print("◀◀◀ 응답 상태 코드:", status_code)
 
-            # ① 응답 상태 코드가 200이 아니면, 상세 에러 정보 출력 시도
-            if r.status_code != 200:
-                # 우선 응답 바디 일부(최대 1000자) 출력
+            # ① 상태 코드가 200이 아니면, st.warning으로 상세 에러 정보를 출력
+            if status_code != 200:
+                # 응답 바디 일부(최대 1000자) 읽어오기
                 try:
                     raw_body = r.text
                     body_snippet = raw_body[:1000]
                 except Exception as e:
                     body_snippet = f"<바디 읽기 실패: {e}>"
-                print(f"◀◀◀ 응답 바디(최대 1000자 출력): {body_snippet}")
 
-                # JSON 형태로 파싱 가능한지 시도
+                # JSON 형태로 파싱 시도
                 try:
-                    err_json = r.json()  # {'code': '40100', 'message': 'Unauthorized', ... } 등이 들어올 수 있음
+                    err_json = r.json()
                 except Exception:
                     err_json = None
 
-                # 401 에러일 때 경고 표시 및 상세 코드·메시지 출력
-                if r.status_code == 401:
+                # 401 에러일 때 경고 표시
+                if status_code == 401:
                     st.warning("⚠️ 인증 오류 (401): API 키 혹은 REQUEST ID를 확인하세요.")
                 else:
-                    st.warning(f"⚠️ 서버 응답 오류: 상태 코드 {r.status_code}")
+                    st.warning(f"⚠️ 서버 응답 오류: 상태 코드 {status_code}")
 
-                # err_json이 있다면 그 안의 code, message, details 출력
+                # 응답 바디 텍스트 일부를 st.warning으로 출력
+                st.warning(f"응답 바디 (최대 1000자):\n{body_snippet}")
+
+                # JSON 파싱에 성공했다면, err_json 내부의 code/message를 st.warning으로 출력
                 if isinstance(err_json, dict):
-                    # 에러 응답 스키마에 맞춰서 key가 다를 수 있으므로 대표적인 필드를 모두 시도
                     code_val = err_json.get("code") or err_json.get("errorCode") or err_json.get("status")
                     msg_val = err_json.get("message") or err_json.get("errorMessage") or err_json.get("detail")
-                    print("----- 상세 에러 정보 -----")
+
                     if code_val is not None:
-                        print("에러 코드:", code_val)
+                        st.warning(f"에러 코드: {code_val}")
                     if msg_val is not None:
-                        print("에러 메시지:", msg_val)
+                        st.warning(f"에러 메시지: {msg_val}")
 
                     # 기타 추가 정보가 있을 경우 모두 출력
                     for k, v in err_json.items():
                         if k not in ("code", "errorCode", "status", "message", "errorMessage", "detail"):
-                            print(f"{k}:", v)
-                    print("-------------------------")
+                            st.warning(f"{k}: {v}")
                 else:
-                    print("※ 응답이 JSON 형식이 아니거나, 파싱 실패하여 상세 에러 정보를 가져올 수 없습니다.")
+                    st.warning("※ 응답이 JSON 형식이 아니거나, 파싱 실패하여 상세 에러 정보를 가져올 수 없습니다.")
 
-                return  # 200이 아니면 그 이후 로직 실행하지 않음
+                return  # 오류 시 이후 로직 실행하지 않음
 
-            # ② status_code가 200일 때만 스트림 본문 파싱
+            # ② status_code가 200일 때만 SSE 파싱 로직 실행
             print("◀◀◀ 응답 바디(최대 1000자):", r.text[:1000])
-            # SSE(Event Stream) 형태로 들어오는 data: { ... } 를 파싱
+
             buffer_json = None
             for raw_line in r.iter_lines(decode_unicode=True):
                 if raw_line is None:
@@ -160,7 +161,7 @@ if "copied_chat_history" not in st.session_state:
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
     api_key='nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu',
-    request_id='a52fef7ad6f74857a7a7c290ca177798'  # 이제 오류 없이 전달 가능
+    request_id='a52fef7ad6f74857a7a7c290ca177798'
 )
 
 # 2-4) Streamlit 레이아웃/스타일 정의
@@ -263,7 +264,7 @@ def send_message():
             'seed': 0
         }
 
-        # ③ HCX-005 호출 (SSE 파싱 로직 포함)
+        # ③ HCX-005 호출 (상세 오류를 st.warning으로 출력)
         completion_executor.execute(completion_request)
 
         # ④ 입력란 초기화
