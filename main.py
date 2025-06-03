@@ -34,11 +34,10 @@ class CompletionExecutor:
         except Exception as e:
             return f"(에러: {repr(e)})"
 
-# --- 스타일/채팅+스크롤 ALL IN ONE ---
-def render_chat_with_scroll(history):
-    chat_html = """
+def render_chat_with_scroll(history, height=420, container_id='chat-container', title=None):
+    chat_html = f"""
     <style>
-    .header {
+    .header {{
         background-color: #FFEB00;
         padding: 16px 0 12px 0;
         border-radius: 12px 12px 0 0;
@@ -47,13 +46,13 @@ def render_chat_with_scroll(history):
         font-weight: bold;
         color: #222;
         margin-bottom: 0;
-    }
-    .chat-container {
+    }}
+    .chat-container {{
         width: 100%;
         background-color: #FFFFFF;
         border-radius: 12px;
         padding: 16px 10px 10px 10px;
-        height: 350px;
+        height: {height-50}px;
         max-height: 60vh;
         overflow-y: auto;
         border: 1.5px solid #E0E0E0;
@@ -62,8 +61,8 @@ def render_chat_with_scroll(history):
         gap: 10px;
         box-sizing: border-box;
         margin-bottom: 10px;
-    }
-    .bubble-user {
+    }}
+    .bubble-user {{
         align-self: flex-end;
         background-color: #FFEB00;
         color: #000;
@@ -74,8 +73,8 @@ def render_chat_with_scroll(history):
         font-size: 1.08rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         margin-left: 25%;
-    }
-    .bubble-assistant {
+    }}
+    .bubble-assistant {{
         align-self: flex-start;
         background-color: #F0F0F0;
         color: #222;
@@ -86,41 +85,34 @@ def render_chat_with_scroll(history):
         font-size: 1.08rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         margin-right: 25%;
-    }
+    }}
     </style>
-    <div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>
-    <div class="chat-container" id="chat-container">
     """
+    if title:
+        chat_html += f'<div class="header">{title}</div>'
+    chat_html += f'<div class="chat-container" id="{container_id}">'
     for msg in history:
         if msg["role"] == "user":
             chat_html += f'<div class="bubble-user">{msg["content"]}</div>'
         elif msg["role"] == "assistant":
             chat_html += f'<div class="bubble-assistant">{msg["content"]}</div>'
-    chat_html += """
+    chat_html += f"""
     <div id="scroll-anchor"></div>
     </div>
     <script>
-        const container = document.getElementById('chat-container');
-        if (container) {
+        const container = document.getElementById('{container_id}');
+        if (container) {{
             container.scrollTop = container.scrollHeight;
-        }
+        }}
     </script>
     """
-    st.components.v1.html(chat_html, height=420, scrolling=False)
+    st.components.v1.html(chat_html, height=height, scrolling=False)
 
-# --- 입력 폼 ---
-with st.form(key="input_form", clear_on_submit=True):
-    user_input = st.text_input(
-        "메시지를 입력하세요...",
-        "",
-        key="input_text",
-        placeholder="메시지를 입력하고 엔터를 누르거나 전송 버튼을 클릭하세요."
-    )
-    submitted = st.form_submit_button("전송", use_container_width=True)
-
-# --- 세션 상태 초기화: 빈 대화로 시작 ---
+# --- 세션 상태 초기화 ---
 if "history" not in st.session_state:
     st.session_state.history = []
+if "learned_knowledge" not in st.session_state:
+    st.session_state.learned_knowledge = ""  # 요약 결과
 
 # --- 하이퍼클로바 설정 ---
 HYPERCLOVA_HOST = "https://clovastudio.stream.ntruss.com"
@@ -174,29 +166,82 @@ system_prompt = {
     )
 }
 
-# --- 입력시 대화 append 및 응답 생성 ---
-if submitted and user_input and user_input.strip():
-    st.session_state.history.append({"role": "user", "content": user_input})
+# ---- 페이지 레이아웃: 2컬럼 ----
+left_col, right_col = st.columns([2, 1])
 
-    messages = [system_prompt]
-    for msg in st.session_state.history:
-        messages.append({"role": msg["role"], "content": msg["content"]})
+# ---- 왼쪽: 채팅 챗봇 ----
+with left_col:
+    # 입력 폼
+    with st.form(key="input_form", clear_on_submit=True):
+        user_input = st.text_input(
+            "메시지를 입력하세요...",
+            "",
+            key="input_text",
+            placeholder="메시지를 입력하고 엔터를 누르거나 전송 버튼을 클릭하세요."
+        )
+        submitted = st.form_submit_button("전송", use_container_width=True)
 
-    request_payload = {
-        "messages": messages,
-        "topP": 0.8,
-        "topK": 0,
-        "maxTokens": 256,
-        "temperature": 0.5,
-        "repetitionPenalty": 1.1,
-        "stop": [],
-        "includeAiFilters": True,
-        "seed": 0,
-        "stream": False
-    }
-    with st.spinner("응답을 받고 있습니다..."):
-        bot_response = executor.get_response(request_payload)
-    st.session_state.history.append({"role": "assistant", "content": bot_response})
+    if submitted and user_input and user_input.strip():
+        st.session_state.history.append({"role": "user", "content": user_input})
 
-# --- 채팅, 스크롤 ALL IN ONE ---
-render_chat_with_scroll(st.session_state.history)
+        messages = [system_prompt]
+        for msg in st.session_state.history:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
+        request_payload = {
+            "messages": messages,
+            "topP": 0.8,
+            "topK": 0,
+            "maxTokens": 256,
+            "temperature": 0.5,
+            "repetitionPenalty": 1.1,
+            "stop": [],
+            "includeAiFilters": True,
+            "seed": 0,
+            "stream": False
+        }
+        with st.spinner("응답을 받고 있습니다..."):
+            bot_response = executor.get_response(request_payload)
+        st.session_state.history.append({"role": "assistant", "content": bot_response})
+
+    render_chat_with_scroll(
+        st.session_state.history, height=420, container_id='chat-container-main', title="HyperCLOVA 챗봇 (KakaoTalk 스타일)"
+    )
+
+# ---- 오른쪽: 학습한 지식 ----
+with right_col:
+    st.markdown("### 내 아이가 학습한 지식")
+    if st.button("학습한 지식 보기"):
+        # 대화 내용 중 어시스턴트가 "학습/요약"한 내용만 추려서 요약
+        # (assistant 발화 중 "알려줘", "배웠어", "이제 알 것 같아" 등의 문장 또는 전체 대화 요약)
+        # 실제론 assistant/user의 모든 대화를 요약, 개조식으로 생성!
+        convo = ""
+        for msg in st.session_state.history:
+            if msg["role"] == "user":
+                convo += f"사용자: {msg['content']}\n"
+            elif msg["role"] == "assistant":
+                convo += f"어시스턴트: {msg['content']}\n"
+        summary_prompt = [
+            {"role": "system", "content": "아래는 유치원생(어시스턴트)와 친구(사용자)의 대화 내용이야. 어시스턴트가 친구(사용자)에게서 배운 지식만 개조식으로 정리해서 간결하게 3~7줄로 알려줘. 이미 배운 적 없는 내용은 포함하지 말고, 실제로 설명을 들은 내용만 정리해. 불필요한 인삿말·감사 표현·질문은 빼고, 실제로 이해한 지식·사실만 적어줘."},
+            {"role": "user", "content": convo}
+        ]
+        summary_payload = {
+            "messages": summary_prompt,
+            "topP": 0.8,
+            "topK": 0,
+            "maxTokens": 300,
+            "temperature": 0.5,
+            "repetitionPenalty": 1.05,
+            "stop": [],
+            "includeAiFilters": True,
+            "seed": 0,
+            "stream": False
+        }
+        with st.spinner("학습한 내용을 요약하는 중..."):
+            summary = executor.get_response(summary_payload)
+        st.session_state.learned_knowledge = summary
+
+    # "학습한 지식" 텍스트박스에 채팅형태로 출력
+    if st.session_state.learned_knowledge:
+        knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
+        render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
