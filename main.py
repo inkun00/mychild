@@ -118,7 +118,7 @@ class CompletionExecutor:
             # 파싱된 최종 JSON에서 content를 꺼내 세션 상태에 추가
             if buffer_json and "message" in buffer_json and "content" in buffer_json["message"]:
                 content = buffer_json["message"]["content"]
-                
+
                 # 만약 content가 dict 형태이고 "parts" 키를 가진다면, 실제 문자열을 합쳐야 할 수도 있음:
                 # if isinstance(content, dict) and "parts" in content:
                 #     actual_content = "".join(content["parts"])
@@ -134,7 +134,7 @@ class CompletionExecutor:
 
 
 # ----------------------------------------
-# 2) Streamlit UI 설정 (나머지 코드는 동일)
+# 2) Streamlit UI 설정 (전체 코드)
 # ----------------------------------------
 
 # 2-1) 이미지 URL 목록 (로봇 프로필 사진 등)
