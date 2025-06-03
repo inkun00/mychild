@@ -34,7 +34,7 @@ class CompletionExecutor:
         except Exception as e:
             return f"(에러: {repr(e)})"
 
-def render_chat_with_scroll(history, height=700, container_id='chat-container', title=None):
+def render_chat_with_scroll(history, height=420, container_id='chat-container', title=None):
     chat_html = f"""
     <style>
     .header {{
@@ -52,8 +52,8 @@ def render_chat_with_scroll(history, height=700, container_id='chat-container', 
         background-color: #FFFFFF;
         border-radius: 12px;
         padding: 16px 10px 10px 10px;
-        height: {height}px;
-        max-height: {height}px;
+        height: {height-50}px;
+        max-height: 60vh;
         overflow-y: auto;
         border: 1.5px solid #E0E0E0;
         display: flex;
@@ -106,7 +106,7 @@ def render_chat_with_scroll(history, height=700, container_id='chat-container', 
         }}
     </script>
     """
-    st.components.v1.html(chat_html, height=height+80, scrolling=False)
+    st.components.v1.html(chat_html, height=height, scrolling=False)
 
 # --- 세션 상태 초기화 ---
 if "history" not in st.session_state:
@@ -166,15 +166,12 @@ system_prompt = {
     )
 }
 
-# ---- 페이지 레이아웃: 2컬럼(동일 비율) ----
-left_col, right_col = st.columns([2, 2])  # 가로비 2:2 (오른쪽이 두 배!)
+# ---- 페이지 레이아웃: 2컬럼 ----
+left_col, right_col = st.columns([2, 1])
 
 # ---- 왼쪽: 채팅 챗봇 ----
 with left_col:
-    render_chat_with_scroll(
-        st.session_state.history, height=700, container_id='chat-container-main', title="HyperCLOVA 챗봇 (KakaoTalk 스타일)"
-    )
-    # 입력 폼(아래로!)
+    # 입력 폼
     with st.form(key="input_form", clear_on_submit=True):
         user_input = st.text_input(
             "메시지를 입력하세요...",
@@ -207,11 +204,17 @@ with left_col:
             bot_response = executor.get_response(request_payload)
         st.session_state.history.append({"role": "assistant", "content": bot_response})
 
+    render_chat_with_scroll(
+        st.session_state.history, height=420, container_id='chat-container-main', title="HyperCLOVA 챗봇 (KakaoTalk 스타일)"
+    )
+
 # ---- 오른쪽: 학습한 지식 ----
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
     if st.button("학습한 지식 보기"):
         # 대화 내용 중 어시스턴트가 "학습/요약"한 내용만 추려서 요약
+        # (assistant 발화 중 "알려줘", "배웠어", "이제 알 것 같아" 등의 문장 또는 전체 대화 요약)
+        # 실제론 assistant/user의 모든 대화를 요약, 개조식으로 생성!
         convo = ""
         for msg in st.session_state.history:
             if msg["role"] == "user":
@@ -238,7 +241,7 @@ with right_col:
             summary = executor.get_response(summary_payload)
         st.session_state.learned_knowledge = summary
 
-    # "학습한 지식" 텍스트박스에 채팅형태로 출력 (넓이/높이 두 배!)
+    # "학습한 지식" 텍스트박스에 채팅형태로 출력
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
-        render_chat_with_scroll(knowledge_history, height=400, container_id='chat-container-knowledge', title=None)
+        render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
