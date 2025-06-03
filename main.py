@@ -230,24 +230,25 @@ with left_col:
         if st.button("아이의 지식 수준 출력"):
             analyze_prompt = [
                 {"role": "system", "content":
-                "아래 목록은 한 학생이 친구에게서 배운 지식입니다.\n"
-                "실제 내용만 참고해서, 대한민국 초등/중등 교육과정에서 이 내용을 가장 무난히 이해할 수 있는 '최소 나이'를 추론하세요.\n"
-                "출력은 반드시 예시처럼 **나이만**, '몇 살 몇 개월'만, **추가설명/부연금지**.\n\n"
+                "아래는 한 학생이 누적해서 배운 지식 목록이다.\n"
+                "오직 이 목록의 전체 내용을 바탕으로, 대한민국 교육과정(초등~고등) 기준에서 평균적인 학생이 모두 이해할 수 있는 최소 나이를 '몇 살 몇 개월'만으로, 1개만, 다른 말 없이 출력하라.\n"
+                "추가설명, 여러 개의 나이, 부연, 문장 금지. 반드시 한 줄, 예시 형식만. (예: 11살 0개월)\n\n"
                 "예시:\n"
-                "- 구구단, 덧셈/뺄셈: 8살 0개월\n"
-                "- 원소기호, 분수의 사칙연산: 11살 0개월\n"
-                "- 피타고라스정리: 13살 0개월\n\n"
-                "지식 수준만 답해."
+                "- 구구단, 덧셈/뺄셈만 있을 때: 8살 0개월\n"
+                "- 분수의 사칙연산, 원소기호, 도형의 둘레, 넓이까지 있으면: 11살 0개월\n"
+                "- 피타고라스 정리, 소인수분해, 함수 개념 있으면: 13살 0개월\n"
+                "- 삼각함수, 미적분, 통계, 확률: 16살 0개월\n\n"
+                "나이 하나만 답하라."
                 },
-                {"role": "user", "content": st.session_state.learned_knowledge}
+                {"role": "user", "content": f"<학습한 지식 목록>\n{st.session_state.learned_knowledge}"}
             ]
             analyze_payload = {
                 "messages": analyze_prompt,
-                "topP": 0.8,
+                "topP": 0.7,
                 "topK": 0,
-                "maxTokens": 20,
-                "temperature": 0.5,
-                "repetitionPenalty": 1.05,
+                "maxTokens": 12,
+                "temperature": 0.2,
+                "repetitionPenalty": 1.15,
                 "stop": [],
                 "includeAiFilters": True,
                 "seed": 0,
