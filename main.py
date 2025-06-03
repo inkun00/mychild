@@ -231,11 +231,11 @@ with left_col:
     # 아이의 지식 수준 분석 버튼 (별도 버튼)
     if st.session_state.learned_knowledge:
         if st.button("아이의 지식 수준 출력"):
-            # 더욱 객관적이고 교육과정 기준에 맞춘 프롬프트
+            # 프롬프트를 '나이만, 예시 형식만'으로 명확히!
             analyze_prompt = [
                 {"role": "system", "content": "아래는 학생이 배운 지식의 목록입니다."},
                 {"role": "user", "content": st.session_state.learned_knowledge},
-                {"role": "user", "content": "이 지식 내용을 바탕으로 대한민국 초중등 교육 기준에서 이 내용을 이해할 수 있는 평균적인 학생 나이를 '몇 살, 몇 개월' 형식으로만 출력해. 나이만 답해."}
+                {"role": "user", "content": "아래 지식 목록을 보고 대한민국 교육과정 기준에서 이 내용을 이해할 수 있는 평균적인 학생 나이를 '몇 살, 몇 개월' 형식(예: 9살 0개월)으로만 출력해. 나이 이외의 말은 하지 마."}
             ]
             analyze_payload = {
                 "messages": analyze_prompt,
