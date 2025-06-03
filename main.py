@@ -2,13 +2,50 @@ import streamlit as st
 import requests
 import re
 
+# --- 페이지 wide 설정 및 최대 폭 확장 + 복사/붙여넣기/마우스 차단 ---
 st.set_page_config(page_title="HyperCLOVA 유치원 챗봇", layout="wide")
 st.markdown("""
     <style>
         .main .block-container {max-width: 1800px;}
+        body, .main .block-container, textarea, input, .chat-container {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+        }
     </style>
+    <script>
+    // 마우스 오른쪽 버튼 차단
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    // 단축키(Ctrl+C/V/X/A, Shift+Insert 등) 차단
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Command + C/V/X/A/Insert
+        if ((e.ctrlKey || e.metaKey) && (
+            e.key === 'c' || e.key === 'v' || e.key === 'x' || e.key === 'a' ||
+            e.key === 'C' || e.key === 'V' || e.key === 'X' || e.key === 'A' ||
+            e.key === 'Insert'
+        )) {
+            e.preventDefault();
+        }
+        // Shift + Insert
+        if (e.shiftKey && e.key === 'Insert') {
+            e.preventDefault();
+        }
+        // PrintScreen 차단
+        if (e.key === 'PrintScreen') {
+            e.preventDefault();
+        }
+    });
+
+    // 드래그 차단
+    document.addEventListener('selectstart', function(e) {
+        e.preventDefault();
+    });
+    </script>
 """, unsafe_allow_html=True)
 
+# ---- 이하 나머지 Streamlit 챗봇 코드 동일 (생략 없이 전체 코드 제공) ----
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
         self._host = host
@@ -182,7 +219,6 @@ with left_col:
     if submitted and user_input and user_input.strip():
         st.session_state.history.append({"role": "user", "content": user_input})
 
-        # system_prompt + history를 항상 messages로!
         messages = [system_prompt]
         for msg in st.session_state.history:
             messages.append({"role": msg["role"], "content": msg["content"]})
