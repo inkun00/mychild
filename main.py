@@ -222,7 +222,7 @@ with left_col:
         st.session_state.history.append({"role": "assistant", "content": bot_response})
 
         # 4. 바로 리렌더 (중복 전송 없이 바로 보이게)
-        st.experimental_rerun()
+        st.rerun()
 
     # 입력창과 히스토리 사이 여백
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
