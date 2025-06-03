@@ -8,16 +8,15 @@ import uuid  # 매 요청마다 새로운 UUID를 사용하기 위해 추가
 # 1) CompletionExecutor (디버깅용 로그 추가)
 # ----------------------------------------
 class CompletionExecutor:
-    def __init__(self, host, api_key):
+    def __init__(self, host, api_key, request_id):
         self._host = host
         self._api_key = api_key
+        self._request_id = request_id  # request_id를 멤버 변수로 저장
 
     def execute(self, completion_request):
-       
-
         headers = {
             'X-NCP-CLOVASTUDIO-API-KEY': self._api_key,
-            'X-NCP-CLOVASTUDIO-REQUEST-ID': request_id,
+            'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,  # self._request_id 사용
             'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'text/event-stream'
         }
@@ -125,11 +124,11 @@ if "input_message" not in st.session_state:
 if "copied_chat_history" not in st.session_state:
     st.session_state.copied_chat_history = ""
 
-# 2-3) CompletionExecutor 인스턴스 생성 (API 키만 전달)
+# 2-3) CompletionExecutor 인스턴스 생성 (API 키와 request_id 전달)
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
     api_key='nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu',
-    request_id='a52fef7ad6f74857a7a7c290ca177798'
+    request_id='a52fef7ad6f74857a7a7c290ca177798'  # 이제 오류 없이 전달 가능
 )
 
 # 2-4) Streamlit 레이아웃/스타일 정의
