@@ -6,7 +6,7 @@ import requests
 import json
 
 # ----------------------------------------
-# 1) CompletionExecutor 클래스 (예제 코드 기반)
+# 1) CompletionExecutor 클래스 (원본 예제 기반)
 # ----------------------------------------
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
@@ -27,30 +27,35 @@ class CompletionExecutor:
         }
 
         response_text = ""
-        with requests.post(
-            self._host + "/testapp/v3/chat-completions/HCX-005",
-            headers=headers,
-            json=completion_request,
-            stream=True
-        ) as r:
-            for line in r.iter_lines():
-                if not line:
-                    continue
-                decoded = line.decode("utf-8").strip()
-                # HyperCLOVA streaming 규격: "data: {…json…}" 또는 "data: [DONE]"
-                if decoded.startswith("data: [DONE]"):
-                    break
-                if decoded.startswith("data: "):
-                    payload = decoded[len("data: "):]
-                    try:
-                        chunk = json.loads(payload)
-                        # chunk 구조 예시: {"choices":[{"delta":{"content":"텍스트"}}], ...}
-                        delta = chunk.get("choices", [])[0].get("delta", {})
-                        text = delta.get("content", "")
-                        response_text += text
-                    except json.JSONDecodeError:
-                        # JSON 파싱 실패 시 전체 payload를 이어 붙임
-                        response_text += payload
+        try:
+            with requests.post(
+                self._host + "/testapp/v3/chat-completions/HCX-005",
+                headers=headers,
+                json=completion_request,
+                stream=True,
+                timeout=30  # 혹시 타임아웃이 너무 짧으면 늘려보세요
+            ) as r:
+                for line in r.iter_lines():
+                    if not line:
+                        continue
+                    decoded = line.decode("utf-8").strip()
+                    # HyperCLOVA streaming 규격: "data: {…json…}" 또는 "data: [DONE]"
+                    if decoded.startswith("data: [DONE]"):
+                        break
+                    if decoded.startswith("data: "):
+                        payload = decoded[len("data: "):]
+                        try:
+                            chunk = json.loads(payload)
+                            delta = chunk.get("choices", [])[0].get("delta", {})
+                            text = delta.get("content", "")
+                            response_text += text
+                        except json.JSONDecodeError:
+                            # JSON 파싱 실패 시 payload 전체를 이어 붙임
+                            response_text += payload
+        except Exception as e:
+            # 네트워크 오류나 기타 예외가 발생했을 때, 빈 문자열 대신 예외 메시지를 반환
+            return f"[Exception during API call] {e}"
+
         return response_text
 
 
@@ -58,7 +63,7 @@ class CompletionExecutor:
 # 2) Streamlit 앱 세팅 (스타일 포함)
 # ----------------------------------------
 st.set_page_config(
-    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일)",
+    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일) - Debug Mode",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
@@ -86,7 +91,7 @@ st.markdown(
         background-color: #FFFFFF;
         border-radius: 0 0 8px 8px;
         padding: 12px;
-        height: 60vh;
+        height: 50vh;  /* 디버그 메시지도 보이도록 높이를 약간 줄였습니다 */
         overflow-y: auto;
         border: 1px solid #E0E0E0;
     }
@@ -136,13 +141,24 @@ st.markdown(
     .send-button:hover {
         background-color: #FFD500;
     }
+    /* 디버그 영역 텍스트 */
+    .debug {
+        background-color: #FFF8E1;
+        color: #000;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #FFE082;
+        margin-top: 8px;
+        font-size: 0.9rem;
+        white-space: pre-wrap;
+    }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# 앱 상단 헤더
-st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>', unsafe_allow_html=True)
+# 상단 헤더
+st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일) - Debug Mode</div>', unsafe_allow_html=True)
 
 # ----------------------------------------
 # 3) 세션 상태 초기화: 예제 대화(사용자 + 어시스턴트) 미리 삽입
@@ -150,14 +166,8 @@ st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>',
 if "history" not in st.session_state:
     # 예제: 사용자: "3곱하기 3은 뭐야?" → 어시스턴트: "안배워서 잘 모르겠어. 그게 뭐야?"
     st.session_state.history = [
-        {
-            "role": "user",
-            "content": "3곱하기 3은 뭐야?"
-        },
-        {
-            "role": "assistant",
-            "content": "안배워서 잘 모르겠어. 그게 뭐야?"
-        }
+        {"role": "user", "content": "3곱하기 3은 뭐야?"},
+        {"role": "assistant", "content": "안배워서 잘 모르겠어. 그게 뭐야?"}
     ]
 
 # ----------------------------------------
@@ -219,8 +229,9 @@ system_prompt = {
     )
 }
 
+
 # ----------------------------------------
-# 6) 사용자 입력 처리 (폼) → API 호출 → 히스토리 업데이트
+# 6) 사용자 입력 처리 (폼) → API 호출 → 히스토리 업데이트 및 디버깅
 # ----------------------------------------
 with st.form(key="input_form", clear_on_submit=True):
     user_input = st.text_input(
@@ -231,7 +242,10 @@ with st.form(key="input_form", clear_on_submit=True):
     )
     submitted = st.form_submit_button("전송", use_container_width=True)
 
-if submitted and user_input.strip():
+# 디버깅: submitted와 user_input 값을 항상 화면에 표시
+st.write("🔍 DEBUG ▶ submitted:", submitted, "| user_input:", repr(user_input))
+
+if submitted and user_input and user_input.strip():
     # 1) 사용자 메시지를 히스토리에 추가
     st.session_state.history.append({"role": "user", "content": user_input})
 
@@ -239,6 +253,10 @@ if submitted and user_input.strip():
     messages = [system_prompt]
     for msg in st.session_state.history:
         messages.append({"role": msg["role"], "content": msg["content"]})
+
+    # 디버깅: 보내기 직전의 messages 전체를 출력
+    st.write("🔍 DEBUG ▶ API로 보내는 messages 리스트:")
+    st.write(messages)
 
     request_payload = {
         "messages": messages,
@@ -256,12 +274,17 @@ if submitted and user_input.strip():
     with st.spinner("응답을 받고 있습니다..."):
         bot_response = executor.get_response(request_payload)
 
-    # ─────────────────────────────────────────────────────────────────────
-    # ★ 디버깅용: assistant의 최종 텍스트를 popup 경고창으로 띄우기 ★
+    # 디버깅 1: bot_response가 빈 문자열인지, 예외 메시지인지, 정상 텍스트인지 확인
+    st.write("🔍 DEBUG ▶ bot_response (raw):", repr(bot_response))
+    st.write("🔍 DEBUG ▶ bot_response 길이:", len(bot_response) if bot_response is not None else "None")
+
+    # 디버깅 2: warning 팝업으로도 봇 응답을 띄워봅니다.
     st.warning(f"🚨 [DEBUG] assistant 응답 내용:\n{bot_response}")
-    # ─────────────────────────────────────────────────────────────────────
 
     # 4) 봇 응답을 히스토리에 “assistant” 역할로 추가
+    #    bot_response가 빈 문자열이라도, 키는 assistant로 추가
+    if bot_response is None:
+        bot_response = ""
     st.session_state.history.append({"role": "assistant", "content": bot_response})
 
 
