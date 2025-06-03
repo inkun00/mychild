@@ -194,11 +194,11 @@ with left_col:
         st.markdown("##### 아이의 지식 수준")
         # HCX-005의 분석 결과 출력
         level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else "측정되지 않았어요"
-        st.text_area("지식 수준", level, height=50, key="knowledge_level", disabled=True)
+        st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
     with col_know2:
         st.markdown("##### 학습한 지식 분석")
         knowledge_content = st.session_state.learned_knowledge if st.session_state.learned_knowledge else "아직 학습한 지식이 없어요."
-        st.text_area("학습 내용", knowledge_content, height=50, key="knowledge_content", disabled=True)
+        st.text_area("학습 내용", knowledge_content, height=70, key="knowledge_content", disabled=True)
 
     # 3. 입력창을 맨 아래로!
     with st.form(key="input_form", clear_on_submit=True):
