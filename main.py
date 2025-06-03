@@ -113,8 +113,6 @@ def render_chat_with_scroll(history, height=560, container_id='chat-container', 
 # --- 세션 상태 초기화 ---
 if "history" not in st.session_state:
     st.session_state.history = []
-if "learned_knowledge" not in st.session_state:
-    st.session_state.learned_knowledge = ""  # 요약 결과
 
 # --- 하이퍼클로바 설정 ---
 HYPERCLOVA_HOST = "https://clovastudio.stream.ntruss.com"
@@ -169,14 +167,13 @@ system_prompt = {
 }
 
 # ---- 페이지 레이아웃: 2컬럼(동일 비율) ----
-left_col, right_col = st.columns([2, 2])  # 오른쪽 넓이도 충분히
+left_col, right_col = st.columns([2, 2])
 
 # ---- 왼쪽: 채팅 챗봇 ----
 with left_col:
     render_chat_with_scroll(
         st.session_state.history, height=560, container_id='chat-container-main', title="HyperCLOVA 챗봇 (KakaoTalk 스타일)", width='130%'
     )
-    # 입력 폼(아래로, 세로 20% 줄임)
     with st.form(key="input_form", clear_on_submit=True):
         st.markdown(
             """
@@ -269,14 +266,9 @@ with right_col:
     """
     btn_placeholder.markdown(btn_html, unsafe_allow_html=True)
 
-    # 실제 버튼 이벤트는 Streamlit에서 제어
-    knowledge_btn_clicked = st.session_state.get("knowledge_btn_clicked", False)
-    if st.button("학습한 지식 보기", key="knowledge_btn_real", use_container_width=True):
-        knowledge_btn_clicked = True
-        st.session_state["knowledge_btn_clicked"] = True
-
-    # knowledge summary 생성
-    if knowledge_btn_clicked:
+    # 반드시 버튼 클릭시에만 요약!
+    show_knowledge = st.button("학습한 지식 보기", key="knowledge_btn_real", use_container_width=True)
+    if show_knowledge:
         convo = ""
         for msg in st.session_state.history:
             if msg["role"] == "user":
@@ -304,6 +296,8 @@ with right_col:
         # 줄바꿈 처리: . ? ! 뒤에 <br> 삽입
         summary_br = re.sub(r'([.?!])(\s|$)', r'\1<br>', summary)
         st.session_state.learned_knowledge = summary_br
+    else:
+        st.session_state.learned_knowledge = ""  # 버튼을 누르지 않으면 항상 빈 문자열
 
     # "학습한 지식" 텍스트박스에 채팅형태로 출력 (넓이 120%)
     if st.session_state.learned_knowledge:
