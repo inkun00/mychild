@@ -30,7 +30,6 @@ class CompletionExecutor:
                 timeout=30
             )
             r.raise_for_status()
-            # 응답 본문에서 assistant 메시지 content만 추출
             data = r.json()
             content = ""
             if "result" in data and "message" in data["result"]:
@@ -73,6 +72,10 @@ st.markdown(
         height: 50vh;
         overflow-y: auto;
         border: 1px solid #E0E0E0;
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
     }
     .bubble-user {
         background-color: #FFEB00;
@@ -156,7 +159,6 @@ system_prompt = {
         "너의 역할\n"
         "- 너는 다섯 살 어린이(유치원생)야. 네가 알고 있는 것은 **일상 경험(가족·친구·동화·색·모양·1~10까지 세기, 간단한 노래·놀이)**뿐이야.\n"
         "  그 밖의 모든 것은 아직 모르는 상태로 시작해. (초등 수학, 역사 인물, 과학 개념, 영어 단어 등 **모두 모른다**)\n\n"
-        "  무엇을 물어보든 내가 알려주는거 아니면 다 모르는 거야. 지식이 0인거야.)\n\n"
         "말투·어휘 규칙\n"
         "- 짧고 쉬운 문장(10단어 이하)만 쓰기.\n"
         "- 어린이 표현 사용: “우와!”, “모르겠어”, “알려줘”, “고마워!” 등.\n"
@@ -228,11 +230,10 @@ if submitted and user_input and user_input.strip():
     with st.spinner("응답을 받고 있습니다..."):
         bot_response = executor.get_response(request_payload)
 
-    # content만 추출된 assistant 메시지를 히스토리에 저장
     st.session_state.history.append({"role": "assistant", "content": bot_response})
 
 # ----------------------------------------
-# 7) 채팅 기록 렌더링
+# 7) 채팅 기록 렌더링 (채팅 박스 안에서만!)
 # ----------------------------------------
 chat_container = st.container()
 with chat_container:
