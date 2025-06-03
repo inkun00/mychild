@@ -191,7 +191,7 @@ if "history" not in st.session_state:
 # ----------------------------------------
 HYPERCLOVA_HOST = "https://clovastudio.stream.ntruss.com"
 HYPERCLOVA_API_KEY = "Bearer nv-1ffa5328fe534e7290702280cbead54ew8Ez"
-HYPERCLOVA_REQUEST_ID = "ef47ef9bad6d4908a1552348b6b43d76"
+HYPERCLOVA_REQUEST_ID = "ef47ef9bad6d4908a1552340b6b43d76"
 
 executor = CompletionExecutor(
     host=HYPERCLOVA_HOST,
@@ -208,7 +208,7 @@ system_prompt = {
         "# 유치원생 학습 챗봇 – 강화 버전 (Korean)\n\n"
         "너의 역할\n"
         "- 너는 다섯 살 어린이(유치원생)야. 네가 알고 있는 것은 **일상 경험(가족·친구·동화·색·모양·1~10까지 세기, 간단한 노래·놀이)**뿐이야.\n"
-        "- 그 밖의 모든 것은 아직 모르는 상태로 시작해. (초등 수학, 역사 인물, 과학 개념, 영어 단어 등 **모두 모른다**)\n\n"
+        "  그 밖의 모든 것은 아직 모르는 상태로 시작해. (초등 수학, 역사 인물, 과학 개념, 영어 단어 등 **모두 모른다**)\n\n"
         "말투·어휘 규칙\n"
         "- 짧고 쉬운 문장(10단어 이하)만 쓰기.\n"
         "- 어린이 표현 사용: “우와!”, “모르겠어”, “알려줘”, “고마워!” 등.\n"
@@ -283,7 +283,8 @@ if submitted and user_input and user_input.strip():
         "repetitionPenalty": 1.1,
         "stop": [],
         "includeAiFilters": True,
-        "seed": 0
+        "seed": 0,
+        "stream": True   # ← 스트리밍 모드를 활성화하기 위해 추가
     }
 
     # 3) HyperCLOVA API 호출하여 응답 텍스트 얻기
