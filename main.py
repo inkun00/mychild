@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import json
+import re
 
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
@@ -34,9 +35,10 @@ class CompletionExecutor:
         except Exception as e:
             return f"(에러: {repr(e)})"
 
-def render_chat_with_scroll(history, height=560, container_id='chat-container', title=None, width='100%'):
+def render_chat_with_scroll(history, height=560, container_id='chat-container', title=None, width='100%', font_size='1.08rem'):
     chat_html = f"""
     <style>
+    .main {{ max-width: 1600px !important; }}
     .header {{
         background-color: #FFEB00;
         padding: 16px 0 12px 0;
@@ -70,7 +72,7 @@ def render_chat_with_scroll(history, height=560, container_id='chat-container', 
         border-radius: 20px 20px 4px 20px;
         max-width: 75%;
         word-break: break-all;
-        font-size: 1.08rem;
+        font-size: {font_size};
         box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         margin-left: 25%;
     }}
@@ -82,7 +84,7 @@ def render_chat_with_scroll(history, height=560, container_id='chat-container', 
         border-radius: 20px 20px 20px 4px;
         max-width: 75%;
         word-break: break-all;
-        font-size: 1.08rem;
+        font-size: {font_size};
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         margin-right: 25%;
     }}
@@ -167,7 +169,7 @@ system_prompt = {
 }
 
 # ---- 페이지 레이아웃: 2컬럼(동일 비율) ----
-left_col, right_col = st.columns([2, 2])  # 가로비 2:2 (오른쪽이 두 배!)
+left_col, right_col = st.columns([2, 2])  # 오른쪽 넓이도 충분히
 
 # ---- 왼쪽: 채팅 챗봇 ----
 with left_col:
@@ -299,11 +301,13 @@ with right_col:
         }
         with st.spinner("학습한 내용을 요약하는 중..."):
             summary = executor.get_response(summary_payload)
-        st.session_state.learned_knowledge = summary
+        # 줄바꿈 처리: . ? ! 뒤에 <br> 삽입
+        summary_br = re.sub(r'([.?!])(\s|$)', r'\1<br>', summary)
+        st.session_state.learned_knowledge = summary_br
 
     # "학습한 지식" 텍스트박스에 채팅형태로 출력 (넓이 120%)
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
-        render_chat_with_scroll(knowledge_history, height=340, container_id='chat-container-knowledge', title=None, width='120%')
+        render_chat_with_scroll(knowledge_history, height=340, container_id='chat-container-knowledge', title=None, width='120%', font_size='1.10rem')
 
     st.markdown("</div>", unsafe_allow_html=True)
