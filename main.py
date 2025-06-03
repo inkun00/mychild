@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import re
 
 # --- 페이지 wide 설정 및 최대 폭 확장 ---
 st.set_page_config(page_title="HyperCLOVA 유치원 챗봇", layout="wide")
@@ -41,6 +42,13 @@ class CompletionExecutor:
         except Exception as e:
             return f"(에러: {repr(e)})"
 
+def add_linebreaks(text):
+    # 마침표, 느낌표, 물음표 뒤에 <br> 추가
+    text = re.sub(r'(?<=[.!?])\s*', '<br>', text)
+    # 개조식 항목이 여러 개라면 줄바꿈 추가
+    text = re.sub(r'(<br>)*- ', '<br>- ', text)
+    return text
+
 def render_chat_with_scroll(history, height=420, container_id='chat-container', title=None):
     chat_html = f"""
     <style>
@@ -75,11 +83,12 @@ def render_chat_with_scroll(history, height=420, container_id='chat-container', 
         color: #000;
         padding: 8px 20px;
         border-radius: 20px 20px 4px 20px;
-        max-width: 75%;
+        max-width: 95%;   /* 기존 75%에서 늘림 */
+        min-width: 35%;
         word-break: break-all;
         font-size: 1.08rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-        margin-left: 25%;
+        margin-left: 5%;
     }}
     .bubble-assistant {{
         align-self: flex-start;
@@ -87,11 +96,12 @@ def render_chat_with_scroll(history, height=420, container_id='chat-container', 
         color: #222;
         padding: 8px 20px;
         border-radius: 20px 20px 20px 4px;
-        max-width: 75%;
+        max-width: 95%;   /* 기존 75%에서 늘림 */
+        min-width: 35%;
         word-break: break-all;
         font-size: 1.08rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        margin-right: 25%;
+        margin-right: 5%;
     }}
     </style>
     """
@@ -99,10 +109,14 @@ def render_chat_with_scroll(history, height=420, container_id='chat-container', 
         chat_html += f'<div class="header">{title}</div>'
     chat_html += f'<div class="chat-container" id="{container_id}">'
     for msg in history:
+        content = msg["content"]
+        # "학습한 지식" 말풍선만 줄바꿈 추가
+        if container_id == 'chat-container-knowledge':
+            content = add_linebreaks(content)
         if msg["role"] == "user":
-            chat_html += f'<div class="bubble-user">{msg["content"]}</div>'
+            chat_html += f'<div class="bubble-user">{content}</div>'
         elif msg["role"] == "assistant":
-            chat_html += f'<div class="bubble-assistant">{msg["content"]}</div>'
+            chat_html += f'<div class="bubble-assistant">{content}</div>'
     chat_html += f"""
     <div id="scroll-anchor"></div>
     </div>
@@ -181,12 +195,10 @@ left_col, right_col = st.columns([3, 1.5])  # 가로 폭 더 넓게
 # ---- 왼쪽: 챗봇 ----
 with left_col:
     st.markdown("#### HyperCLOVA 챗봇 (KakaoTalk 스타일)")
-    # 1. 채팅 히스토리 먼저
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
-    # 2. 입력창과 버튼을 별도로 배치 (폼 없이!)
     user_input = st.text_input(
         "메시지를 입력하세요...",
         st.session_state.input_text,
@@ -217,17 +229,14 @@ with left_col:
         with st.spinner("응답을 받고 있습니다..."):
             bot_response = executor.get_response(request_payload)
         st.session_state.history.append({"role": "assistant", "content": bot_response})
-        # 입력창 내용 지우기
         st.session_state.input_text = ""
 
-    # 입력창과 히스토리 사이 여백
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 
 # ---- 오른쪽: 학습한 지식 ----
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
     if st.button("학습한 지식 보기"):
-        # 대화 내용 중 assistant가 "학습/요약"한 내용만 추려서 요약
         convo = ""
         for msg in st.session_state.history:
             if msg["role"] == "user":
@@ -254,7 +263,6 @@ with right_col:
             summary = executor.get_response(summary_payload)
         st.session_state.learned_knowledge = summary
 
-    # "학습한 지식" 텍스트박스에 채팅형태로 출력
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
         render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
