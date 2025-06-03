@@ -5,9 +5,7 @@ import streamlit as st
 import requests
 import json
 
-# ----------------------------------------
 # 1) CompletionExecutor 클래스 (content만 반환)
-# ----------------------------------------
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
         self._host = host
@@ -40,9 +38,7 @@ class CompletionExecutor:
         except Exception as e:
             return f"(에러: {repr(e)})"
 
-# ----------------------------------------
 # 2) Streamlit 앱 세팅 (스타일 포함)
-# ----------------------------------------
 st.set_page_config(
     page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일)",
     layout="centered",
@@ -52,10 +48,6 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .reportview-container {
-        background-color: #F5F5F7;
-        font-family: "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
-    }
     .header {
         background-color: #FFEB00;
         padding: 12px;
@@ -64,61 +56,50 @@ st.markdown(
         font-size: 1.4rem;
         font-weight: bold;
         color: #333;
+        margin-bottom: 0;
+    }
+    .chat-outer {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        margin-bottom: 12px;
     }
     .chat-container {
         background-color: #FFFFFF;
         border-radius: 0 0 8px 8px;
-        padding: 12px;
-        height: 50vh;
+        padding: 12px 8px 8px 8px;
+        height: 45vh;
+        min-height: 220px;
+        max-height: 400px;
         overflow-y: auto;
         border: 1px solid #E0E0E0;
-        margin-bottom: 20px;
         display: flex;
         flex-direction: column;
-        justify-content: flex-end;
+        gap: 8px;
     }
     .bubble-user {
+        align-self: flex-end;
         background-color: #FFEB00;
         color: #000;
         padding: 8px 12px;
         border-radius: 18px 18px 0 18px;
-        display: inline-block;
         max-width: 70%;
-        margin-bottom: 6px;
-        float: right;
-        clear: both;
+        word-break: break-all;
+        margin-bottom: 0;
+        font-size: 1.04rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
     }
     .bubble-assistant {
+        align-self: flex-start;
         background-color: #F0F0F0;
         color: #000;
         padding: 8px 12px;
         border-radius: 18px 18px 18px 0;
-        display: inline-block;
         max-width: 70%;
-        margin-bottom: 6px;
-        float: left;
-        clear: both;
-    }
-    .input-text {
-        flex: 1;
-        padding: 8px;
-        border: 1px solid #DDD;
-        border-radius: 18px;
-        font-size: 1rem;
-        outline: none;
-    }
-    .send-button {
-        background-color: #FFEB00;
-        border: none;
-        color: #000;
-        padding: 0 16px;
-        margin-left: 8px;
-        border-radius: 18px;
-        font-size: 1rem;
-        cursor: pointer;
-    }
-    .send-button:hover {
-        background-color: #FFD500;
+        word-break: break-all;
+        margin-bottom: 0;
+        font-size: 1.04rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
     </style>
     """,
@@ -127,18 +108,11 @@ st.markdown(
 
 st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>', unsafe_allow_html=True)
 
-# ----------------------------------------
-# 3) 세션 상태 초기화: 예제 대화
-# ----------------------------------------
+# 3) 세션 상태 초기화: 예제 대화 없이!
 if "history" not in st.session_state:
-    st.session_state.history = [
-        {"role": "user", "content": "3곱하기 3은 뭐야?"},
-        {"role": "assistant", "content": "안배워서 잘 모르겠어. 그게 뭐야?"}
-    ]
+    st.session_state.history = []
 
-# ----------------------------------------
 # 4) HyperCLOVA 호출용 기본 설정
-# ----------------------------------------
 HYPERCLOVA_HOST = "https://clovastudio.stream.ntruss.com"
 HYPERCLOVA_API_KEY = "Bearer nv-1ffa5328fe534e7290702280cbead54ew8Ez"
 HYPERCLOVA_REQUEST_ID = "ef47ef9bad6d4908a1552340b6b43d76"
@@ -149,9 +123,7 @@ executor = CompletionExecutor(
     request_id=HYPERCLOVA_REQUEST_ID
 )
 
-# ----------------------------------------
-# 5) 시스템 프롬프트 정의
-# ----------------------------------------
+# 5) 시스템 프롬프트 정의 (동일)
 system_prompt = {
     "role": "system",
     "content": (
@@ -195,9 +167,7 @@ system_prompt = {
     )
 }
 
-# ----------------------------------------
 # 6) 사용자 입력 처리 (폼) → API 호출 → 히스토리 업데이트
-# ----------------------------------------
 with st.form(key="input_form", clear_on_submit=True):
     user_input = st.text_input(
         "메시지를 입력하세요...",
@@ -232,23 +202,17 @@ if submitted and user_input and user_input.strip():
 
     st.session_state.history.append({"role": "assistant", "content": bot_response})
 
-# ----------------------------------------
-# 7) 채팅 기록 렌더링 (채팅 박스 안에서만!)
-# ----------------------------------------
-chat_container = st.container()
-with chat_container:
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-    for msg in st.session_state.history:
-        if msg["role"] == "user":
-            st.markdown(
-                f'<div class="bubble-user">{msg["content"]}</div>'
-                '<div style="clear: both;"></div>',
-                unsafe_allow_html=True
-            )
-        elif msg["role"] == "assistant":
-            st.markdown(
-                f'<div class="bubble-assistant">{msg["content"]}</div>'
-                '<div style="clear: both;"></div>',
-                unsafe_allow_html=True
-            )
-    st.markdown("</div>", unsafe_allow_html=True)
+# 7) 채팅 기록 렌더링 (항상 박스 안에!)
+st.markdown('<div class="chat-outer"><div class="chat-container">', unsafe_allow_html=True)
+for msg in st.session_state.history:
+    if msg["role"] == "user":
+        st.markdown(
+            f'<div class="bubble-user">{msg["content"]}</div>',
+            unsafe_allow_html=True
+        )
+    elif msg["role"] == "assistant":
+        st.markdown(
+            f'<div class="bubble-assistant">{msg["content"]}</div>',
+            unsafe_allow_html=True
+        )
+st.markdown('</div></div>', unsafe_allow_html=True)
