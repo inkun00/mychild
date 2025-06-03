@@ -46,30 +46,23 @@ st.markdown(
     <style>
     .header {
         background-color: #FFEB00;
-        padding: 18px;
-        border-radius: 18px 18px 0 0;
+        padding: 16px 0 12px 0;
+        border-radius: 12px 12px 0 0;
         text-align: center;
         font-size: 1.5rem;
         font-weight: bold;
         color: #222;
-        margin-bottom: 8px;
-        border: 1.5px solid #FFEB00;
-    }
-    .input-form-outer {
-        border: 1.5px solid #DDD;
-        border-radius: 0 0 12px 12px;
-        background: #fff;
-        margin-bottom: 18px;
-        padding: 12px 16px 10px 16px;
-        width: 100%;
+        margin-bottom: 0;
+        border-bottom: none;
+        box-shadow: none;
     }
     .chat-container {
         width: 100%;
         background-color: #FFFFFF;
-        border-radius: 18px;
-        padding: 18px 8px 12px 8px;
-        height: 400px;
-        max-height: 65vh;
+        border-radius: 12px;
+        padding: 16px 10px 10px 10px;
+        height: 350px;
+        max-height: 60vh;
         overflow-y: auto;
         border: 1.5px solid #E0E0E0;
         display: flex;
@@ -77,7 +70,6 @@ st.markdown(
         gap: 10px;
         box-sizing: border-box;
         margin-bottom: 10px;
-        position: relative;
     }
     .bubble-user {
         align-self: flex-end;
@@ -87,7 +79,6 @@ st.markdown(
         border-radius: 20px 20px 4px 20px;
         max-width: 75%;
         word-break: break-all;
-        margin-bottom: 0;
         font-size: 1.08rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         margin-left: 25%;
@@ -100,10 +91,24 @@ st.markdown(
         border-radius: 20px 20px 20px 4px;
         max-width: 75%;
         word-break: break-all;
-        margin-bottom: 0;
         font-size: 1.08rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         margin-right: 25%;
+    }
+    .input-form {
+        width: 100%;
+        border: 1px solid #DDD;
+        border-radius: 0 0 12px 12px;
+        background: #fff;
+        margin-bottom: 10px;
+        padding: 12px 14px 10px 14px;
+    }
+    .stTextInput>div>div>input {
+        font-size: 1.08rem !important;
+        background: #F5F5F7 !important;
+        border-radius: 8px !important;
+        padding: 10px 10px !important;
+        border: 1px solid #E0E0E0 !important;
     }
     </style>
     """,
@@ -113,9 +118,9 @@ st.markdown(
 # --- 헤더 ---
 st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>', unsafe_allow_html=True)
 
-# --- 입력 폼 (상단) ---
+# --- 입력 폼 ---
 with st.form(key="input_form", clear_on_submit=True):
-    st.markdown('<div class="input-form-outer">', unsafe_allow_html=True)
+    st.markdown('<div class="input-form">', unsafe_allow_html=True)
     user_input = st.text_input(
         "메시지를 입력하세요...",
         "",
@@ -205,25 +210,24 @@ if submitted and user_input and user_input.strip():
         bot_response = executor.get_response(request_payload)
     st.session_state.history.append({"role": "assistant", "content": bot_response})
 
-# --- 채팅 내용 (모든 메시지를 하나의 html 덩어리로 합쳐 chat-container 안에!) ---
-chat_html = '<div class="chat-container" id="chatbox">'
+# --- 채팅 내용 채팅 박스에 (scroll-anchor 추가!) ---
+chat_html = '<div class="chat-container" id="chat-container">'
 for msg in st.session_state.history:
     if msg["role"] == "user":
         chat_html += f'<div class="bubble-user">{msg["content"]}</div>'
     elif msg["role"] == "assistant":
         chat_html += f'<div class="bubble-assistant">{msg["content"]}</div>'
-# --- 스크롤 자동이동용 앵커 ---
 chat_html += '<div id="scroll-anchor"></div></div>'
 st.markdown(chat_html, unsafe_allow_html=True)
 
-# --- 자바스크립트: 항상 맨 아래로 스크롤 ---
-scroll_js = """
+# --- 자바스크립트: 항상 맨 아래로 스크롤 (Streamlit 컴포넌트 안에서!) ---
+st.components.v1.html("""
 <script>
-const chatbox = window.parent.document.querySelector('div[data-testid="stMarkdownContainer"] .chat-container');
-const anchor = window.parent.document.getElementById('scroll-anchor');
-if (chatbox && anchor) {
-    anchor.scrollIntoView({behavior: "auto"});
-}
+(function() {
+    var chatBox = window.parent.document.querySelector('div[data-testid="stMarkdownContainer"] #chat-container');
+    if (chatBox) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+})();
 </script>
-"""
-st.components.v1.html(scroll_js, height=0)
+""", height=0)
