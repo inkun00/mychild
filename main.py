@@ -34,7 +34,7 @@ class CompletionExecutor:
         except Exception as e:
             return f"(에러: {repr(e)})"
 
-def render_chat_with_scroll(history, height=700, container_id='chat-container', title=None):
+def render_chat_with_scroll(history, height=560, container_id='chat-container', title=None, width='100%'):
     chat_html = f"""
     <style>
     .header {{
@@ -48,7 +48,7 @@ def render_chat_with_scroll(history, height=700, container_id='chat-container', 
         margin-bottom: 0;
     }}
     .chat-container {{
-        width: 100%;
+        width: {width};
         background-color: #FFFFFF;
         border-radius: 12px;
         padding: 16px 10px 10px 10px;
@@ -172,18 +172,44 @@ left_col, right_col = st.columns([2, 2])  # 가로비 2:2 (오른쪽이 두 배!
 # ---- 왼쪽: 채팅 챗봇 ----
 with left_col:
     render_chat_with_scroll(
-        st.session_state.history, height=700, container_id='chat-container-main', title="HyperCLOVA 챗봇 (KakaoTalk 스타일)"
+        st.session_state.history, height=560, container_id='chat-container-main', title="HyperCLOVA 챗봇 (KakaoTalk 스타일)", width='130%'
     )
-    # 입력 폼(아래로!)
+    # 입력 폼(아래로, 세로 20% 줄임)
     with st.form(key="input_form", clear_on_submit=True):
+        st.markdown(
+            """
+            <style>
+            .custom-input-form {display:flex; justify-content:center;}
+            .custom-input-box {
+                width: 130% !important;
+                min-width: 240px;
+                font-size: 1.15rem;
+                padding: 0.8em 1em;
+                border-radius: 8px;
+                border: 1px solid #E0E0E0;
+            }
+            .custom-submit-btn {
+                width: 130% !important;
+                margin-top: 8px;
+                background: #FFEB00;
+                border: 1.5px solid #F8E400;
+                color: #111;
+                border-radius: 6px;
+                font-size: 1.13rem;
+                padding: 0.7em 0;
+                font-weight: 600;
+            }
+            </style>
+            """, unsafe_allow_html=True
+        )
         user_input = st.text_input(
-            "메시지를 입력하세요...",
+            "",
             "",
             key="input_text",
-            placeholder="메시지를 입력하고 엔터를 누르거나 전송 버튼을 클릭하세요."
+            placeholder="메시지를 입력하고 엔터를 누르거나 전송 버튼을 클릭하세요.",
+            label_visibility="collapsed"
         )
         submitted = st.form_submit_button("전송", use_container_width=True)
-
     if submitted and user_input and user_input.strip():
         st.session_state.history.append({"role": "user", "content": user_input})
 
@@ -209,9 +235,46 @@ with left_col:
 
 # ---- 오른쪽: 학습한 지식 ----
 with right_col:
-    st.markdown("### 내 아이가 학습한 지식")
-    if st.button("학습한 지식 보기"):
-        # 대화 내용 중 어시스턴트가 "학습/요약"한 내용만 추려서 요약
+    st.markdown("""
+        <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+            <h3 style="text-align:center; margin-bottom:16px; font-size:1.35rem;">내 아이가 학습한 지식</h3>
+    """, unsafe_allow_html=True)
+
+    # 버튼도 동일 길이로 맞춤
+    btn_placeholder = st.empty()
+    btn_html = """
+        <style>
+        .knowledge-btn {
+            width: 95%%;
+            background: #FFEB00;
+            color: #1a1a1a;
+            border: 1.5px solid #F8E400;
+            border-radius: 8px;
+            font-size: 1.13rem;
+            padding: 0.85em 0;
+            font-weight: bold;
+            margin-bottom: 12px;
+            text-align:center;
+            cursor:pointer;
+        }
+        </style>
+        <button class="knowledge-btn" type="button" onclick="window.dispatchEvent(new Event('knowledge_view'));">학습한 지식 보기</button>
+        <script>
+        window.addEventListener('knowledge_view', function(){
+            window.parent.postMessage('knowledge_btn_clicked','*');
+        });
+        </script>
+    """
+    btn_placeholder.markdown(btn_html, unsafe_allow_html=True)
+
+    # 실제 버튼 이벤트는 Streamlit에서 제어
+    knowledge_btn_clicked = st.session_state.get("knowledge_btn_clicked", False)
+    if st.button("학습한 지식 보기", key="knowledge_btn_real", use_container_width=True):
+        knowledge_btn_clicked = True
+        st.session_state["knowledge_btn_clicked"] = True
+
+    # knowledge summary 생성
+    if knowledge_btn_clicked:
         convo = ""
         for msg in st.session_state.history:
             if msg["role"] == "user":
@@ -238,7 +301,9 @@ with right_col:
             summary = executor.get_response(summary_payload)
         st.session_state.learned_knowledge = summary
 
-    # "학습한 지식" 텍스트박스에 채팅형태로 출력 (넓이/높이 두 배!)
+    # "학습한 지식" 텍스트박스에 채팅형태로 출력 (넓이 120%)
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
-        render_chat_with_scroll(knowledge_history, height=400, container_id='chat-container-knowledge', title=None)
+        render_chat_with_scroll(knowledge_history, height=340, container_id='chat-container-knowledge', title=None, width='120%')
+
+    st.markdown("</div>", unsafe_allow_html=True)
