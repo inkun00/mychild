@@ -245,7 +245,6 @@ system_prompt = {
     )
 }
 
-
 # ----------------------------------------
 # 6) 사용자 입력 처리 (폼) → API 호출 → 히스토리 업데이트 및 디버깅
 # ----------------------------------------
@@ -284,7 +283,7 @@ if submitted and user_input and user_input.strip():
         "stop": [],
         "includeAiFilters": True,
         "seed": 0,
-        "stream": True   # ← 스트리밍 모드를 활성화하기 위해 추가
+        "stream": True   # ← 스트리밍 모드를 활성화하기 위해 반드시 추가
     }
 
     # 3) HyperCLOVA API 호출하여 응답 텍스트 얻기
