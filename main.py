@@ -76,11 +76,11 @@ def render_chat_with_scroll(history, height=420, container_id='chat-container', 
         color: #000;
         padding: 8px 20px;
         border-radius: 20px 20px 4px 20px;
-        max-width: 75%;
+        max-width: 95%;
         word-break: break-all;
         font-size: 1.08rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-        margin-left: 25%;
+        margin-left: 5%;
     }}
     .bubble-assistant {{
         align-self: flex-start;
@@ -88,11 +88,11 @@ def render_chat_with_scroll(history, height=420, container_id='chat-container', 
         color: #222;
         padding: 8px 20px;
         border-radius: 20px 20px 20px 4px;
-        max-width: 75%;
+        max-width: 95%;
         word-break: break-all;
         font-size: 1.08rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        margin-right: 25%;
+        margin-right: 5%;
     }}
     </style>
     """
@@ -263,7 +263,7 @@ with left_col:
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
     if st.button("학습한 지식 보기"):
-        # 누적 전체 대화 내용을 요약으로 넘김 (history는 유지!)
+        # 개조식, 각 줄마다 -로 시작, 인삿말·불필요한 설명 없이!
         convo = ""
         for msg in st.session_state.history:
             if msg["role"] == "user":
@@ -271,7 +271,7 @@ with right_col:
             elif msg["role"] == "assistant":
                 convo += f"어시스턴트: {msg['content']}\n"
         summary_prompt = [
-            {"role": "system", "content": "아래는 유치원생(어시스턴트)와 친구(사용자)의 대화 내용이야. 어시스턴트가 친구(사용자)에게서 배운 지식만 개조식으로 정리해서 간결하게 3~7줄로 알려줘. 이미 배운 적 없는 내용은 포함하지 말고, 실제로 설명을 들은 내용만 정리해. 불필요한 인삿말·감사 표현·질문은 빼고, 실제로 이해한 지식·사실만 적어줘."},
+            {"role": "system", "content": "아래는 유치원생(어시스턴트)와 친구(사용자)의 대화 내용이야. 어시스턴트가 친구(사용자)에게서 배운 지식만 **개조식으로** 요약해줘. 각 줄의 맨 앞에 '-'를 붙이고, 불필요한 인삿말·감사표현·질문·설명은 빼고, 실제로 이해한 핵심 지식·사실만 3~7줄로 정리해."},
             {"role": "user", "content": convo}
         ]
         summary_payload = {
