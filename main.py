@@ -120,6 +120,8 @@ if "history" not in st.session_state:
     st.session_state.history = []
 if "learned_knowledge" not in st.session_state:
     st.session_state.learned_knowledge = ""  # 요약 결과
+if "input_text" not in st.session_state:
+    st.session_state.input_text = ""
 
 # --- 하이퍼클로바 설정 ---
 HYPERCLOVA_HOST = "https://clovastudio.stream.ntruss.com"
@@ -178,21 +180,20 @@ left_col, right_col = st.columns([3, 1.5])  # 가로 폭 더 넓게
 
 # ---- 왼쪽: 챗봇 ----
 with left_col:
-    st.markdown("내 아이 공부 시키기")
+    st.markdown("#### HyperCLOVA 챗봇 (KakaoTalk 스타일)")
     # 1. 채팅 히스토리 먼저
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
-    # 2. 입력창을 맨 아래로!
-    with st.form(key="input_form", clear_on_submit=True):
-        user_input = st.text_input(
-            "메시지를 입력하세요...",
-            "",
-            key="input_text",
-            placeholder="메시지를 입력하고 엔터를 누르거나 전송 버튼을 클릭하세요."
-        )
-        submitted = st.form_submit_button("전송", use_container_width=True)
+    # 2. 입력창과 버튼을 별도로 배치 (폼 없이!)
+    user_input = st.text_input(
+        "메시지를 입력하세요...",
+        st.session_state.input_text,
+        key="input_text",
+        placeholder="메시지를 입력하고 엔터를 누르거나 전송 버튼을 클릭하세요."
+    )
+    submitted = st.button("전송", use_container_width=True)
 
     if submitted and user_input and user_input.strip():
         st.session_state.history.append({"role": "user", "content": user_input})
@@ -216,6 +217,8 @@ with left_col:
         with st.spinner("응답을 받고 있습니다..."):
             bot_response = executor.get_response(request_payload)
         st.session_state.history.append({"role": "assistant", "content": bot_response})
+        # 입력창 내용 지우기
+        st.session_state.input_text = ""
 
     # 입력창과 히스토리 사이 여백
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
