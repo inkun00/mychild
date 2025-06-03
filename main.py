@@ -159,7 +159,7 @@ if "copied_chat_history" not in st.session_state:
 # 2-3) CompletionExecutor 인스턴스 생성 (API 키와 request_id 전달)
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
-    api_key='nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu',
+    api_key='Bearer nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu',
     request_id='a52fef7ad6f74857a7a7c290ca177798'
 )
 
