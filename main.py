@@ -77,6 +77,7 @@ st.markdown(
         gap: 10px;
         box-sizing: border-box;
         margin-bottom: 10px;
+        position: relative;
     }
     .bubble-user {
         align-self: flex-end;
@@ -112,7 +113,7 @@ st.markdown(
 # --- 헤더 ---
 st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>', unsafe_allow_html=True)
 
-# --- 입력 폼 (상단에! 사각형 바깥!) ---
+# --- 입력 폼 (상단) ---
 with st.form(key="input_form", clear_on_submit=True):
     st.markdown('<div class="input-form-outer">', unsafe_allow_html=True)
     user_input = st.text_input(
@@ -205,12 +206,24 @@ if submitted and user_input and user_input.strip():
     st.session_state.history.append({"role": "assistant", "content": bot_response})
 
 # --- 채팅 내용 (모든 메시지를 하나의 html 덩어리로 합쳐 chat-container 안에!) ---
-chat_html = '<div class="chat-container">'
+chat_html = '<div class="chat-container" id="chatbox">'
 for msg in st.session_state.history:
     if msg["role"] == "user":
         chat_html += f'<div class="bubble-user">{msg["content"]}</div>'
     elif msg["role"] == "assistant":
         chat_html += f'<div class="bubble-assistant">{msg["content"]}</div>'
-chat_html += '</div>'
-
+# --- 스크롤 자동이동용 앵커 ---
+chat_html += '<div id="scroll-anchor"></div></div>'
 st.markdown(chat_html, unsafe_allow_html=True)
+
+# --- 자바스크립트: 항상 맨 아래로 스크롤 ---
+scroll_js = """
+<script>
+const chatbox = window.parent.document.querySelector('div[data-testid="stMarkdownContainer"] .chat-container');
+const anchor = window.parent.document.getElementById('scroll-anchor');
+if (chatbox && anchor) {
+    anchor.scrollIntoView({behavior: "auto"});
+}
+</script>
+"""
+st.components.v1.html(scroll_js, height=0)
