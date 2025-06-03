@@ -6,7 +6,7 @@ import requests
 import json
 
 # ----------------------------------------
-# 1) CompletionExecutor 클래스 (UTF-8 인코딩 적용)
+# 1) CompletionExecutor 클래스 (json= 방식으로 수정)
 # ----------------------------------------
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
@@ -18,18 +18,8 @@ class CompletionExecutor:
         """
         HyperCLOVA API를 호출하여 streaming 응답을 수신하고,
         누적된 텍스트를 하나의 문자열로 반환합니다.
-        (JSON 페이로드를 ensure_ascii=False로 덤프하여 UTF-8 바이트로 전송)
+        (json=completion_request 방식을 사용하여, 요청 바디를 ASCII로만 구성)
         """
-        # 1) JSON 문자열로 덤프 (ensure_ascii=False → 한글을 그대로 유지)
-        try:
-            json_str = json.dumps(completion_request, ensure_ascii=False)
-        except Exception as e:
-            # JSON 직렬화 단계에서 에러가 난 경우
-            return f"[Exception during JSON dump] {e}"
-
-        # 2) UTF-8로 인코딩된 바이트
-        payload_bytes = json_str.encode("utf-8")
-
         headers = {
             "Authorization": self._api_key,
             "X-NCP-CLOVASTUDIO-REQUEST-ID": self._request_id,
@@ -39,22 +29,29 @@ class CompletionExecutor:
 
         response_text = ""
         try:
-            # requests.post에서 json= 대신 data=payload_bytes를 사용
+            # 여기서는 json=completion_request를 사용
             with requests.post(
                 self._host + "/testapp/v3/chat-completions/HCX-005",
                 headers=headers,
-                data=payload_bytes,
+                json=completion_request,  # JSON 모드를 사용하면, 내부적으로 ensure_ascii=True 처리가 됨
                 stream=True,
-                timeout=30  # 타임아웃 조정 가능
+                timeout=30  # 필요에 따라 늘리거나 줄이세요
             ) as r:
-                # 만약 HTTP 에러(예: 4xx, 5xx)가 발생하면 예외를 일으키도록
+                # HTTP 에러가 있으면 예외 발생
                 r.raise_for_status()
 
-                # decode_unicode=True: iter_lines가 바이트를 UTF-8로 디코딩해서 str로 줌
-                for line in r.iter_lines(decode_unicode=True):
-                    if not line:
+                # r.iter_lines() 로 바이트 단위로 줄 단위 읽기 → 명시적으로 UTF-8 디코딩
+                for raw_line in r.iter_lines():
+                    if not raw_line:
                         continue
-                    # HyperCLOVA streaming 형식: "data: {…json…}" 또는 "data: [DONE]"
+                    try:
+                        line = raw_line.decode("utf-8").strip()
+                    except Exception as e:
+                        # 디코딩 단계에서 문제가 생겼다면 로그에 남기고 continue
+                        response_text += f"[DecodeError: {repr(e)}]"
+                        continue
+
+                    # HyperCLOVA streaming 규격: "data: {…json…}" 또는 "data: [DONE]"
                     if line.startswith("data: [DONE]"):
                         break
                     if line.startswith("data: "):
@@ -65,13 +62,15 @@ class CompletionExecutor:
                             text = delta.get("content", "")
                             response_text += text
                         except json.JSONDecodeError:
-                            # JSON 파싱에 실패할 경우에도, payload 그대로 누적
+                            # JSON 파싱에 실패하면 payload 전체를 그대로 누적
                             response_text += payload
+
         except requests.exceptions.HTTPError as http_err:
-            return f"[HTTP error] {http_err} (status {http_err.response.status_code})"
+            # HTTP 상태 코드 오류
+            return f"[HTTP error: {http_err} (status {http_err.response.status_code})]"
         except Exception as e:
-            # 네트워크 오류, 디코딩 오류 등 기타 예외가 발생 시
-            return f"[Exception during API call] {e}"
+            # 그 외 네트워크/타임아웃/기타 예외
+            return f"[Exception during API call: {repr(e)}]"
 
         return response_text
 
@@ -80,12 +79,12 @@ class CompletionExecutor:
 # 2) Streamlit 앱 세팅 (스타일 포함)
 # ----------------------------------------
 st.set_page_config(
-    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일) - UTF-8 Debug Mode",
+    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일) - UTF-8 Fix",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# CSS 스타일: 카카오톡 UI 느낌 + 디버그 메시지 스타일
+# CSS: 카카오톡 UI + 디버그 영역
 st.markdown(
     """
     <style>
@@ -175,8 +174,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 앱 상단 헤더
-st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일) - UTF-8 Debug Mode</div>', unsafe_allow_html=True)
+# 상단 헤더
+st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일) - UTF-8 Fix</div>', unsafe_allow_html=True)
 
 # ----------------------------------------
 # 3) 세션 상태 초기화: 예제 대화(사용자 + 어시스턴트) 미리 삽입
