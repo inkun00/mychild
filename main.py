@@ -187,20 +187,19 @@ with left_col:
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
-    # 생성 텍스트박스(아이의 지식 수준, 학습한 지식 분석)
-    col_know1, col_know2 = st.columns(2)
-    with col_know1:
-        st.markdown("##### 아이의 지식 수준")
-        level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else "측정되지 않았어요"
-        st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
-    with col_know2:
-        st.markdown("##### 학습한 지식 분석")
-        knowledge_content = st.session_state.learned_knowledge if st.session_state.learned_knowledge else "아직 학습한 지식이 없어요."
-        st.text_area("학습 내용", knowledge_content, height=70, key="knowledge_content", disabled=True)
+    # 학습한 지식이 있을 때만 텍스트박스 표시
+    if st.session_state.learned_knowledge:
+        col_know1, col_know2 = st.columns(2)
+        with col_know1:
+            st.markdown("##### 아이의 지식 수준")
+            level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else "측정되지 않았어요"
+            st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
+        with col_know2:
+            st.markdown("##### 학습한 지식 분석")
+            knowledge_content = st.session_state.learned_knowledge
+            st.text_area("학습 내용", knowledge_content, height=70, key="knowledge_content", disabled=True)
 
-    # 불필요한 여백 코드 완전 제거!
-
-    # 입력창(텍스트박스와 바로 붙여서)
+    # 입력창
     with st.form(key="input_form", clear_on_submit=True):
         user_input = st.text_input(
             "메시지를 입력하세요...",
@@ -291,7 +290,7 @@ with right_col:
 
         st.rerun()
 
-    # "학습한 지식" 텍스트박스에 채팅형태로 출력
+    # "학습한 지식" 텍스트박스에 채팅형태로 출력 (학습 내용 있을 때만!)
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
         render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
