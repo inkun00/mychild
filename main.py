@@ -258,7 +258,7 @@ with right_col:
             summary = executor.get_response(summary_payload)
         st.session_state.learned_knowledge = summary
         # 바로 갱신되도록 리렌더
-        st.experimental_rerun()
+        st.rerun()
 
     # "학습한 지식" 텍스트박스에 채팅형태로 출력
     if st.session_state.learned_knowledge:
