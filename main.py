@@ -187,17 +187,11 @@ with left_col:
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
-    # 학습한 지식이 있을 때만 텍스트박스 표시
+    # 학습한 지식이 있을 때만 지식 수준 표시
     if st.session_state.learned_knowledge:
-        col_know1, col_know2 = st.columns(2)
-        with col_know1:
-            st.markdown("##### 아이의 지식 수준")
-            level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else "측정되지 않았어요"
-            st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
-        with col_know2:
-            st.markdown("##### 학습한 지식 분석")
-            knowledge_content = st.session_state.learned_knowledge
-            st.text_area("학습 내용", knowledge_content, height=70, key="knowledge_content", disabled=True)
+        st.markdown("##### 아이의 지식 수준")
+        level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else ""
+        st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
 
     # 입력창
     with st.form(key="input_form", clear_on_submit=True):
@@ -234,6 +228,32 @@ with left_col:
 
         st.rerun()
 
+    # 아이의 지식 수준 분석 버튼 (별도 버튼)
+    if st.session_state.learned_knowledge:
+        if st.button("아이의 지식 수준 출력"):
+            # 프롬프트: "학습한 지식을 보고 '몇 살, 몇 개월' 만 출력해."
+            analyze_prompt = [
+                {"role": "system", "content": "아래는 유치원생(어시스턴트)이 친구(사용자)에게서 배운 지식의 목록이야."},
+                {"role": "user", "content": st.session_state.learned_knowledge},
+                {"role": "user", "content": "학습한 지식을 보고 '몇 살, 몇 개월' 만 출력해. 문장은 출력하지 마."}
+            ]
+            analyze_payload = {
+                "messages": analyze_prompt,
+                "topP": 0.8,
+                "topK": 0,
+                "maxTokens": 20,
+                "temperature": 0.5,
+                "repetitionPenalty": 1.05,
+                "stop": [],
+                "includeAiFilters": True,
+                "seed": 0,
+                "stream": False
+            }
+            with st.spinner("지식 수준을 분석하는 중..."):
+                age_level = executor.get_response(analyze_payload)
+            st.session_state.knowledge_age_level = age_level.strip()
+            st.rerun()
+
 # ---- 오른쪽: 학습한 지식 ----
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
@@ -266,31 +286,10 @@ with right_col:
         summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', summary)
         st.session_state.learned_knowledge = summary_with_newlines
 
-        # 2. HCX-005에 지식 수준 분석 프롬프트로 전달
-        analyze_prompt = [
-            {"role": "system", "content": "아래는 유치원생(어시스턴트)이 친구(사용자)에게서 배운 지식의 목록이야."},
-            {"role": "user", "content": st.session_state.learned_knowledge},
-            {"role": "user", "content": "학습한 지식을 분석해서 몇 살 정도의 지식수준인지 출력해."}
-        ]
-        analyze_payload = {
-            "messages": analyze_prompt,
-            "topP": 0.8,
-            "topK": 0,
-            "maxTokens": 100,
-            "temperature": 0.5,
-            "repetitionPenalty": 1.05,
-            "stop": [],
-            "includeAiFilters": True,
-            "seed": 0,
-            "stream": False
-        }
-        with st.spinner("지식 수준을 분석하는 중..."):
-            age_level = executor.get_response(analyze_payload)
-        st.session_state.knowledge_age_level = age_level.strip()
-
+        # 아이의 지식 수준은 별도 버튼에서 분석
         st.rerun()
 
-    # "학습한 지식" 텍스트박스에 채팅형태로 출력 (학습 내용 있을 때만!)
+    # 학습 내용 히스토리(요약)만 출력, 분석 박스는 없음!
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
         render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
