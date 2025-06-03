@@ -1,6 +1,13 @@
 import streamlit as st
 import requests
-import json
+
+# --- 페이지 wide 설정 및 최대 폭 확장 ---
+st.set_page_config(page_title="HyperCLOVA 유치원 챗봇", layout="wide")
+st.markdown("""
+    <style>
+        .main .block-container {max-width: 1800px;}
+    </style>
+""", unsafe_allow_html=True)
 
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
@@ -167,11 +174,17 @@ system_prompt = {
 }
 
 # ---- 페이지 레이아웃: 2컬럼 ----
-left_col, right_col = st.columns([2, 1])
+left_col, right_col = st.columns([3, 1.5])  # 가로 폭 더 넓게
 
-# ---- 왼쪽: 채팅 챗봇 ----
+# ---- 왼쪽: 챗봇 ----
 with left_col:
-    # 입력 폼
+    st.markdown("#### HyperCLOVA 챗봇 (KakaoTalk 스타일)")
+    # 1. 채팅 히스토리 먼저
+    render_chat_with_scroll(
+        st.session_state.history, height=540, container_id='chat-container-main', title=None
+    )
+
+    # 2. 입력창을 맨 아래로!
     with st.form(key="input_form", clear_on_submit=True):
         user_input = st.text_input(
             "메시지를 입력하세요...",
@@ -204,17 +217,14 @@ with left_col:
             bot_response = executor.get_response(request_payload)
         st.session_state.history.append({"role": "assistant", "content": bot_response})
 
-    render_chat_with_scroll(
-        st.session_state.history, height=420, container_id='chat-container-main', title="HyperCLOVA 챗봇 (KakaoTalk 스타일)"
-    )
+    # 입력창과 히스토리 사이 여백
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 
 # ---- 오른쪽: 학습한 지식 ----
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
     if st.button("학습한 지식 보기"):
-        # 대화 내용 중 어시스턴트가 "학습/요약"한 내용만 추려서 요약
-        # (assistant 발화 중 "알려줘", "배웠어", "이제 알 것 같아" 등의 문장 또는 전체 대화 요약)
-        # 실제론 assistant/user의 모든 대화를 요약, 개조식으로 생성!
+        # 대화 내용 중 assistant가 "학습/요약"한 내용만 추려서 요약
         convo = ""
         for msg in st.session_state.history:
             if msg["role"] == "user":
