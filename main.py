@@ -231,11 +231,11 @@ with left_col:
     # 아이의 지식 수준 분석 버튼 (별도 버튼)
     if st.session_state.learned_knowledge:
         if st.button("아이의 지식 수준 출력"):
-            # 프롬프트: "학습한 지식을 보고 '몇 살, 몇 개월' 만 출력해."
+            # 더욱 객관적이고 교육과정 기준에 맞춘 프롬프트
             analyze_prompt = [
-                {"role": "system", "content": "아래는 유치원생(어시스턴트)이 친구(사용자)에게서 배운 지식의 목록이야."},
+                {"role": "system", "content": "아래는 학생이 배운 지식의 목록입니다."},
                 {"role": "user", "content": st.session_state.learned_knowledge},
-                {"role": "user", "content": "학습한 지식을 보고 '몇 살, 몇 개월' 만 출력해. 문장은 출력하지 마."}
+                {"role": "user", "content": "이 지식 내용을 바탕으로 대한민국 초중등 교육 기준에서 이 내용을 이해할 수 있는 평균적인 학생 나이를 '몇 살, 몇 개월' 형식으로만 출력해. 나이만 답해."}
             ]
             analyze_payload = {
                 "messages": analyze_prompt,
@@ -286,10 +286,9 @@ with right_col:
         summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', summary)
         st.session_state.learned_knowledge = summary_with_newlines
 
-        # 아이의 지식 수준은 별도 버튼에서 분석
         st.rerun()
 
-    # 학습 내용 히스토리(요약)만 출력, 분석 박스는 없음!
+    # 학습 내용 히스토리(요약)만 출력
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
         render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
