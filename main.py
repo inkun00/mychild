@@ -178,7 +178,7 @@ left_col, right_col = st.columns([3, 1.5])  # 가로 폭 더 넓게
 
 # ---- 왼쪽: 챗봇 ----
 with left_col:
-    st.markdown("#### HyperCLOVA 챗봇 (KakaoTalk 스타일)")
+    st.markdown("내 아이 공부시키기")
     # 1. 채팅 히스토리 먼저
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
@@ -194,9 +194,12 @@ with left_col:
         )
         submitted = st.form_submit_button("전송", use_container_width=True)
 
+    # ---- 여기서 즉시 처리 후 rerun
     if submitted and user_input and user_input.strip():
+        # 1. 유저 메시지 history에 저장
         st.session_state.history.append({"role": "user", "content": user_input})
 
+        # 2. 전체 messages 준비
         messages = [system_prompt]
         for msg in st.session_state.history:
             messages.append({"role": msg["role"], "content": msg["content"]})
@@ -213,9 +216,13 @@ with left_col:
             "seed": 0,
             "stream": False
         }
+        # 3. 응답 받아서 바로 history에 추가
         with st.spinner("응답을 받고 있습니다..."):
             bot_response = executor.get_response(request_payload)
         st.session_state.history.append({"role": "assistant", "content": bot_response})
+
+        # 4. 바로 리렌더 (중복 전송 없이 바로 보이게)
+        st.experimental_rerun()
 
     # 입력창과 히스토리 사이 여백
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
@@ -250,6 +257,8 @@ with right_col:
         with st.spinner("학습한 내용을 요약하는 중..."):
             summary = executor.get_response(summary_payload)
         st.session_state.learned_knowledge = summary
+        # 바로 갱신되도록 리렌더
+        st.experimental_rerun()
 
     # "학습한 지식" 텍스트박스에 채팅형태로 출력
     if st.session_state.learned_knowledge:
