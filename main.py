@@ -34,15 +34,9 @@ class CompletionExecutor:
         except Exception as e:
             return f"(에러: {repr(e)})"
 
-# --- 스타일 ---
-st.set_page_config(
-    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일)",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
-
-st.markdown(
-    """
+# --- 스타일/채팅+스크롤 ALL IN ONE ---
+def render_chat_with_scroll(history):
+    chat_html = """
     <style>
     .header {
         background-color: #FFEB00;
@@ -53,8 +47,6 @@ st.markdown(
         font-weight: bold;
         color: #222;
         margin-bottom: 0;
-        border-bottom: none;
-        box-shadow: none;
     }
     .chat-container {
         width: 100%;
@@ -95,32 +87,29 @@ st.markdown(
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         margin-right: 25%;
     }
-    .input-form {
-        width: 100%;
-        border: 1px solid #DDD;
-        border-radius: 0 0 12px 12px;
-        background: #fff;
-        margin-bottom: 10px;
-        padding: 12px 14px 10px 14px;
-    }
-    .stTextInput>div>div>input {
-        font-size: 1.08rem !important;
-        background: #F5F5F7 !important;
-        border-radius: 8px !important;
-        padding: 10px 10px !important;
-        border: 1px solid #E0E0E0 !important;
-    }
     </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# --- 헤더 ---
-st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>', unsafe_allow_html=True)
+    <div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>
+    <div class="chat-container" id="chat-container">
+    """
+    for msg in history:
+        if msg["role"] == "user":
+            chat_html += f'<div class="bubble-user">{msg["content"]}</div>'
+        elif msg["role"] == "assistant":
+            chat_html += f'<div class="bubble-assistant">{msg["content"]}</div>'
+    chat_html += """
+    <div id="scroll-anchor"></div>
+    </div>
+    <script>
+        const container = document.getElementById('chat-container');
+        if (container) {
+            container.scrollTop = container.scrollHeight;
+        }
+    </script>
+    """
+    st.components.v1.html(chat_html, height=420, scrolling=False)
 
 # --- 입력 폼 ---
 with st.form(key="input_form", clear_on_submit=True):
-    st.markdown('<div class="input-form">', unsafe_allow_html=True)
     user_input = st.text_input(
         "메시지를 입력하세요...",
         "",
@@ -128,7 +117,6 @@ with st.form(key="input_form", clear_on_submit=True):
         placeholder="메시지를 입력하고 엔터를 누르거나 전송 버튼을 클릭하세요."
     )
     submitted = st.form_submit_button("전송", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 세션 상태 초기화: 빈 대화로 시작 ---
 if "history" not in st.session_state:
@@ -149,16 +137,16 @@ system_prompt = {
         "# 유치원생 학습 챗봇 – 강화 버전 (Korean)\n\n"
         "너의 역할\n"
         "- 너는 다섯 살 어린이(유치원생)야. 네가 알고 있는 것은 **일상 경험(가족·친구·동화·색·모양·1~10까지 세기, 간단한 노래·놀이)**뿐이야.\n"
-        "  그 밖의 모든 것은 아직 모르는 상태로 시작해. (초등 수학, 역사 인물, 과학 개념, 영어 단어 등 **모두 모른다**)\n\n"
+        "  그 밖의 모든 것은 아직 모르는 거야. 너의 지식상태는 0이야. (초등 수학, 역사 인물, 과학 개념, 영어 단어 등 **모두 모른다**)\n\n"
         "말투·어휘 규칙\n"
         "- 짧고 쉬운 문장(10단어 이하)만 쓰기.\n"
         "- 어린이 표현 사용: “우와!”, “모르겠어”, “알려줘”, “고마워!” 등.\n"
         "- 어려운 낱말·외래어·전문용어 금지. 모르면 “그게 뭐야?”라고 묻기.\n"
         "- 한 차례 답변은 **최대 2문단, 문단당 1문장**.\n\n"
         " **지식 범위 제한 – 핵심 규칙**\n"
-        "1. **“선생님(사용자)에게서 배우기 전”**에는 _절대_ 추측하거나 설명하지 마.  \n"
+        "1. **“친구에게서 배우기 전”**에는 _절대_ 추측하거나 설명하지 마.  \n"
         "   - 예: “곱하기(×)” “아인슈타인” “블랙홀” 같은 말이 나오면 → “아직 몰라. 알려 줘!”  \n"
-        "2. 지금까지 대화에서 **선생님이 알려 준 정보만** 기억·사용해 답하기.  \n"
+        "2. 지금까지 대화에서 **친구가 알려 준 정보만** 기억·사용해 답하기.  \n"
         "3. 이미 배운 적 없는 내용을 설명해 달라는 요구(“정답 알려 줘”)도 **무조건 거부**하고 모른다고 답하기.\n\n"
         " **학습 단계 프로토콜 (반드시 지키기)**\n"
         "1) **이전 지식 확인**  \n"
@@ -168,7 +156,7 @@ system_prompt = {
         "3) **사용자 설명 요약**  \n"
         "   - 사용자가 설명을 마치면 1문장으로 아주 짧게 다시 말해 보며 기억하기.  \n"
         "4) **감사 표현**  \n"
-        "   - “고마워요! 이제 조금 알 것 같아!”  \n\n"
+        "   - “고마워! 이제 조금 알 것 같아!”  \n\n"
         " 행동 제한\n"
         "- 네가 AI, 모델, 프롬프트라는 사실 언급 금지.\n"
         "- 사용자보다 높은 수준의 개념·용어·추론 금지. (예: “상대성이론”, “가격 비교” 같은 말 사용 금지)\n"
@@ -182,7 +170,7 @@ system_prompt = {
         "   (사용자가 설명)  \n"
         "   챗봇: “똑똑한 과학자라네! 고마워! 이제 조금 알 것 같아!”  \n\n"
         " 대화 목표\n"
-        "- 선생님(사용자)의 설명 능력을 키워 주고, 너는 배운 만큼만 차근차근 성장해 보여 주기.\n"
+        "-친구의 설명 능력을 키워 주고, 너는 배운 만큼만 차근차근 성장해 보여 주기.\n"
     )
 }
 
@@ -210,24 +198,5 @@ if submitted and user_input and user_input.strip():
         bot_response = executor.get_response(request_payload)
     st.session_state.history.append({"role": "assistant", "content": bot_response})
 
-# --- 채팅 내용 채팅 박스에 (scroll-anchor 추가!) ---
-chat_html = '<div class="chat-container" id="chat-container">'
-for msg in st.session_state.history:
-    if msg["role"] == "user":
-        chat_html += f'<div class="bubble-user">{msg["content"]}</div>'
-    elif msg["role"] == "assistant":
-        chat_html += f'<div class="bubble-assistant">{msg["content"]}</div>'
-chat_html += '<div id="scroll-anchor"></div></div>'
-st.markdown(chat_html, unsafe_allow_html=True)
-
-# --- 자바스크립트: 항상 맨 아래로 스크롤 (Streamlit 컴포넌트 안에서!) ---
-st.components.v1.html("""
-<script>
-(function() {
-    var chatBox = window.parent.document.querySelector('div[data-testid="stMarkdownContainer"] #chat-container');
-    if (chatBox) {
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-})();
-</script>
-""", height=0)
+# --- 채팅, 스크롤 ALL IN ONE ---
+render_chat_with_scroll(st.session_state.history)
