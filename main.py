@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import re
 
 # --- 페이지 wide 설정 및 최대 폭 확장 ---
 st.set_page_config(page_title="HyperCLOVA 유치원 챗봇", layout="wide")
@@ -99,10 +100,11 @@ def render_chat_with_scroll(history, height=420, container_id='chat-container', 
         chat_html += f'<div class="header">{title}</div>'
     chat_html += f'<div class="chat-container" id="{container_id}">'
     for msg in history:
+        content = msg["content"].replace('\n', '<br>')
         if msg["role"] == "user":
-            chat_html += f'<div class="bubble-user">{msg["content"]}</div>'
+            chat_html += f'<div class="bubble-user">{content}</div>'
         elif msg["role"] == "assistant":
-            chat_html += f'<div class="bubble-assistant">{msg["content"]}</div>'
+            chat_html += f'<div class="bubble-assistant">{content}</div>'
     chat_html += f"""
     <div id="scroll-anchor"></div>
     </div>
@@ -119,7 +121,9 @@ def render_chat_with_scroll(history, height=420, container_id='chat-container', 
 if "history" not in st.session_state:
     st.session_state.history = []
 if "learned_knowledge" not in st.session_state:
-    st.session_state.learned_knowledge = ""  # 요약 결과
+    st.session_state.learned_knowledge = ""
+if "knowledge_age_level" not in st.session_state:
+    st.session_state.knowledge_age_level = ""
 
 # --- 하이퍼클로바 설정 ---
 HYPERCLOVA_HOST = "https://clovastudio.stream.ntruss.com"
@@ -178,13 +182,25 @@ left_col, right_col = st.columns([3, 1.5])  # 가로 폭 더 넓게
 
 # ---- 왼쪽: 챗봇 ----
 with left_col:
-    st.markdown("### 내 아이 공부시키기")
+    st.markdown("내 아이 공부시키기")
     # 1. 채팅 히스토리 먼저
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
-    # 2. 입력창을 맨 아래로!
+    # 2. 대화내용과 입력창 사이: 아이의 지식 수준
+    col_know1, col_know2 = st.columns(2)
+    with col_know1:
+        st.markdown("##### 아이의 지식 수준")
+        # HCX-005의 분석 결과 출력
+        level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else "측정되지 않았어요"
+        st.text_area("지식 수준", level, height=50, key="knowledge_level", disabled=True)
+    with col_know2:
+        st.markdown("##### 학습한 지식 분석")
+        knowledge_content = st.session_state.learned_knowledge if st.session_state.learned_knowledge else "아직 학습한 지식이 없어요."
+        st.text_area("학습 내용", knowledge_content, height=50, key="knowledge_content", disabled=True)
+
+    # 3. 입력창을 맨 아래로!
     with st.form(key="input_form", clear_on_submit=True):
         user_input = st.text_input(
             "메시지를 입력하세요...",
@@ -194,12 +210,9 @@ with left_col:
         )
         submitted = st.form_submit_button("전송", use_container_width=True)
 
-    # ---- 여기서 즉시 처리 후 rerun
     if submitted and user_input and user_input.strip():
-        # 1. 유저 메시지 history에 저장
         st.session_state.history.append({"role": "user", "content": user_input})
 
-        # 2. 전체 messages 준비
         messages = [system_prompt]
         for msg in st.session_state.history:
             messages.append({"role": msg["role"], "content": msg["content"]})
@@ -216,12 +229,10 @@ with left_col:
             "seed": 0,
             "stream": False
         }
-        # 3. 응답 받아서 바로 history에 추가
         with st.spinner("응답을 받고 있습니다..."):
             bot_response = executor.get_response(request_payload)
         st.session_state.history.append({"role": "assistant", "content": bot_response})
 
-        # 4. 바로 리렌더 (중복 전송 없이 바로 보이게)
         st.rerun()
 
     # 입력창과 히스토리 사이 여백
@@ -231,7 +242,7 @@ with left_col:
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
     if st.button("학습한 지식 보기"):
-        # 대화 내용 중 assistant가 "학습/요약"한 내용만 추려서 요약
+        # 1. 요약 생성
         convo = ""
         for msg in st.session_state.history:
             if msg["role"] == "user":
@@ -256,8 +267,31 @@ with right_col:
         }
         with st.spinner("학습한 내용을 요약하는 중..."):
             summary = executor.get_response(summary_payload)
-        st.session_state.learned_knowledge = summary
-        # 바로 갱신되도록 리렌더
+        summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', summary)
+        st.session_state.learned_knowledge = summary_with_newlines
+
+        # 2. HCX-005에 지식 수준 분석 프롬프트로 전달
+        analyze_prompt = [
+            {"role": "system", "content": "아래는 유치원생(어시스턴트)이 친구(사용자)에게서 배운 지식의 목록이야."},
+            {"role": "user", "content": st.session_state.learned_knowledge},
+            {"role": "user", "content": "학습한 지식을 분석해서 몇 살 정도의 지식수준인지 출력해."}
+        ]
+        analyze_payload = {
+            "messages": analyze_prompt,
+            "topP": 0.8,
+            "topK": 0,
+            "maxTokens": 100,
+            "temperature": 0.5,
+            "repetitionPenalty": 1.05,
+            "stop": [],
+            "includeAiFilters": True,
+            "seed": 0,
+            "stream": False
+        }
+        with st.spinner("지식 수준을 분석하는 중..."):
+            age_level = executor.get_response(analyze_payload)
+        st.session_state.knowledge_age_level = age_level.strip()
+
         st.rerun()
 
     # "학습한 지식" 텍스트박스에 채팅형태로 출력
