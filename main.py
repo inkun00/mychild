@@ -183,7 +183,6 @@ left_col, right_col = st.columns([3, 1.5])
 # ---- 왼쪽: 챗봇 ----
 with left_col:
     st.markdown("내 아이 공부시키기")
-    # 항상 누적 전체 대화 출력!
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
@@ -230,9 +229,17 @@ with left_col:
     if st.session_state.learned_knowledge:
         if st.button("아이의 지식 수준 출력"):
             analyze_prompt = [
-                {"role": "system", "content": "아래는 학생이 배운 지식의 목록입니다."},
-                {"role": "user", "content": st.session_state.learned_knowledge},
-                {"role": "user", "content": "아래 지식 목록을 보고 대한민국 교육과정 기준에서 이 내용을 이해할 수 있는 평균적인 학생 나이를 '몇 살, 몇 개월' 형식(예: 9살 0개월)으로만 출력해. 나이 이외의 말은 하지 마."}
+                {"role": "system", "content":
+                "아래 목록은 한 학생이 친구에게서 배운 지식입니다.\n"
+                "실제 내용만 참고해서, 대한민국 초등/중등 교육과정에서 이 내용을 가장 무난히 이해할 수 있는 '최소 나이'를 추론하세요.\n"
+                "출력은 반드시 예시처럼 **나이만**, '몇 살 몇 개월'만, **추가설명/부연금지**.\n\n"
+                "예시:\n"
+                "- 구구단, 덧셈/뺄셈: 8살 0개월\n"
+                "- 원소기호, 분수의 사칙연산: 11살 0개월\n"
+                "- 피타고라스정리: 13살 0개월\n\n"
+                "지식 수준만 답해."
+                },
+                {"role": "user", "content": st.session_state.learned_knowledge}
             ]
             analyze_payload = {
                 "messages": analyze_prompt,
@@ -285,7 +292,6 @@ with right_col:
 
         st.rerun()
 
-    # 학습 내용 요약은 오른쪽에만 출력(기존 대화는 왼쪽에서 계속 보임!)
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
         render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
