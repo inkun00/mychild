@@ -129,7 +129,7 @@ if "copied_chat_history" not in st.session_state:
 completion_executor = CompletionExecutor(
     host='https://clovastudio.stream.ntruss.com',
     api_key='Bearer nv-bf4b622fd7f849b7bea4e9b0daab0098OVpu',
-    request_id='b103b212f8db458989ff8d6a7d44eaa1'
+    request_id='a52fef7ad6f74857a7a7c290ca177798'
 )
 
 # 2-4) Streamlit 레이아웃/스타일 정의
