@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 import json
 import random
-import uuid  # 매 요청마다 새로운 UUID를 사용하기 위해 추가
 
 # ----------------------------------------
 # 1) CompletionExecutor (디버깅용 로그 및 st.warning 출력 추가)
