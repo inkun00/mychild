@@ -79,9 +79,13 @@ class CompletionExecutor:
                 return  # 오류 시 이후 로직 실행하지 않음
 
             # ② status_code가 200일 때만 SSE 파싱 로직 실행
-            print("◀◀◀ 응답 바디(최대 1000자):", r.text[:1000])
+            # => 절대로 `r.text`를 먼저 호출하지 않고, 바로 iter_lines()로 읽어야 함
+            print("◀◀◀ 스트림 응답을 iter_lines()로 처리합니다.")
 
             buffer_json = None
+            # 만약 응답이 여러 덩어리로 나오는 경우를 대비해 content 누적용 변수
+            content_accumulated = ""
+
             for raw_line in r.iter_lines(decode_unicode=True):
                 if raw_line is None:
                     continue
@@ -89,21 +93,39 @@ class CompletionExecutor:
 
                 # 스트림 종료 신호
                 if line == "data: [DONE]":
+                    print("◀◀◀ 스트림 종료 신호([DONE])를 받았습니다.")
                     break
 
                 # data: 으로 시작하는 줄만 JSON 파싱 시도
                 if line.startswith("data: "):
                     json_str = line[len("data: "):]
+                    # 디버깅용 출력
+                    print("◀◀◀ 수신 라인:", json_str)
+
                     try:
                         chat_data = json.loads(json_str)
-                        buffer_json = chat_data
+                        buffer_json = chat_data  # 마지막으로 파싱된 JSON을 저장
+
+                        # 만약 응답이 여러 조각(parts)로 나오는 구조라면, 아래 주석을 참고하여 content_accumulated에 누적
+                        # 예시:
+                        # parts = chat_data.get("message", {}).get("content", {}).get("parts", [])
+                        # if parts:
+                        #     content_accumulated += parts[0]
                     except json.JSONDecodeError as e:
                         st.warning(f"일부 응답(JSON) 파싱 실패: {e}")
                         continue
 
-            # 파싱된 최종 JSON이 있으면 챗 히스토리에 추가
+            # 파싱된 최종 JSON에서 content를 꺼내 세션 상태에 추가
             if buffer_json and "message" in buffer_json and "content" in buffer_json["message"]:
                 content = buffer_json["message"]["content"]
+                
+                # 만약 content가 dict 형태이고 "parts" 키를 가진다면, 실제 문자열을 합쳐야 할 수도 있음:
+                # if isinstance(content, dict) and "parts" in content:
+                #     actual_content = "".join(content["parts"])
+                # else:
+                #     actual_content = content
+                #
+                # 여기서는 단순 문자열이라 가정
                 st.session_state.chat_history.append(
                     {"role": "assistant", "content": content}
                 )
