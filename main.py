@@ -5,7 +5,7 @@ import random
 import uuid  # 매 요청마다 새로운 UUID를 사용하기 위해 추가
 
 # ----------------------------------------
-# 1) CompletionExecutor (디버깅용 로그 추가)
+# 1) CompletionExecutor (디버깅용 로그 및 상세 에러 출력 추가)
 # ----------------------------------------
 class CompletionExecutor:
     def __init__(self, host, api_key, request_id):
@@ -32,22 +32,54 @@ class CompletionExecutor:
             json=completion_request,
             stream=True
         ) as r:
+            # 기본 상태 코드 출력
             print("◀◀◀ 응답 상태 코드:", r.status_code)
-            # Response Body(짧은 길이만) 출력
-            try:
-                body_text = r.text[:1000]  # 최대 1000자까지만 잘라서 확인
-            except Exception as e:
-                body_text = f"<바디 읽기 실패: {e}>"
-            print("◀◀◀ 응답 바디(최대 1000자):", body_text)
 
-            # HTTP 상태 코드 검사
-            if r.status_code == 401:
-                st.warning("⚠️ 인증 오류 (401): API 키 혹은 REQUEST ID를 확인하세요.")
-                return
+            # ① 응답 상태 코드가 200이 아니면, 상세 에러 정보 출력 시도
             if r.status_code != 200:
-                st.warning(f"서버 응답이 성공적이지 않습니다. 상태 코드: {r.status_code}")
-                return
+                # 우선 응답 바디 일부(최대 1000자) 출력
+                try:
+                    raw_body = r.text
+                    body_snippet = raw_body[:1000]
+                except Exception as e:
+                    body_snippet = f"<바디 읽기 실패: {e}>"
+                print(f"◀◀◀ 응답 바디(최대 1000자 출력): {body_snippet}")
 
+                # JSON 형태로 파싱 가능한지 시도
+                try:
+                    err_json = r.json()  # {'code': '40100', 'message': 'Unauthorized', ... } 등이 들어올 수 있음
+                except Exception:
+                    err_json = None
+
+                # 401 에러일 때 경고 표시 및 상세 코드·메시지 출력
+                if r.status_code == 401:
+                    st.warning("⚠️ 인증 오류 (401): API 키 혹은 REQUEST ID를 확인하세요.")
+                else:
+                    st.warning(f"⚠️ 서버 응답 오류: 상태 코드 {r.status_code}")
+
+                # err_json이 있다면 그 안의 code, message, details 출력
+                if isinstance(err_json, dict):
+                    # 에러 응답 스키마에 맞춰서 key가 다를 수 있으므로 대표적인 필드를 모두 시도
+                    code_val = err_json.get("code") or err_json.get("errorCode") or err_json.get("status")
+                    msg_val = err_json.get("message") or err_json.get("errorMessage") or err_json.get("detail")
+                    print("----- 상세 에러 정보 -----")
+                    if code_val is not None:
+                        print("에러 코드:", code_val)
+                    if msg_val is not None:
+                        print("에러 메시지:", msg_val)
+
+                    # 기타 추가 정보가 있을 경우 모두 출력
+                    for k, v in err_json.items():
+                        if k not in ("code", "errorCode", "status", "message", "errorMessage", "detail"):
+                            print(f"{k}:", v)
+                    print("-------------------------")
+                else:
+                    print("※ 응답이 JSON 형식이 아니거나, 파싱 실패하여 상세 에러 정보를 가져올 수 없습니다.")
+
+                return  # 200이 아니면 그 이후 로직 실행하지 않음
+
+            # ② status_code가 200일 때만 스트림 본문 파싱
+            print("◀◀◀ 응답 바디(최대 1000자):", r.text[:1000])
             # SSE(Event Stream) 형태로 들어오는 data: { ... } 를 파싱
             buffer_json = None
             for raw_line in r.iter_lines(decode_unicode=True):
