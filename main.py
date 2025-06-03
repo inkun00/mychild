@@ -178,22 +178,21 @@ system_prompt = {
 }
 
 # ---- 페이지 레이아웃: 2컬럼 ----
-left_col, right_col = st.columns([3, 1.5])  # 가로 폭 더 넓게
+left_col, right_col = st.columns([3, 1.5])
 
 # ---- 왼쪽: 챗봇 ----
 with left_col:
     st.markdown("내 아이 공부시키기")
+    # 항상 누적 전체 대화 출력!
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
-    # 학습한 지식이 있을 때만 지식 수준 표시
     if st.session_state.learned_knowledge:
         st.markdown("##### 아이의 지식 수준")
         level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else ""
         st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
 
-    # 입력창
     with st.form(key="input_form", clear_on_submit=True):
         user_input = st.text_input(
             "메시지를 입력하세요...",
@@ -228,10 +227,8 @@ with left_col:
 
         st.rerun()
 
-    # 아이의 지식 수준 분석 버튼 (별도 버튼)
     if st.session_state.learned_knowledge:
         if st.button("아이의 지식 수준 출력"):
-            # 프롬프트를 '나이만, 예시 형식만'으로 명확히!
             analyze_prompt = [
                 {"role": "system", "content": "아래는 학생이 배운 지식의 목록입니다."},
                 {"role": "user", "content": st.session_state.learned_knowledge},
@@ -254,11 +251,11 @@ with left_col:
             st.session_state.knowledge_age_level = age_level.strip()
             st.rerun()
 
-# ---- 오른쪽: 학습한 지식 ----
+# ---- 오른쪽: 학습한 지식 요약 ----
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
     if st.button("학습한 지식 보기"):
-        # 1. 요약 생성
+        # 누적 전체 대화 내용을 요약으로 넘김 (history는 유지!)
         convo = ""
         for msg in st.session_state.history:
             if msg["role"] == "user":
@@ -288,7 +285,7 @@ with right_col:
 
         st.rerun()
 
-    # 학습 내용 히스토리(요약)만 출력
+    # 학습 내용 요약은 오른쪽에만 출력(기존 대화는 왼쪽에서 계속 보임!)
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
         render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
