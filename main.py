@@ -6,7 +6,7 @@ import requests
 import json
 
 # ----------------------------------------
-# 1) CompletionExecutor 클래스 (원본 예제 기반)
+# 1) CompletionExecutor 클래스 (UTF-8 인코딩 적용)
 # ----------------------------------------
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
@@ -18,7 +18,18 @@ class CompletionExecutor:
         """
         HyperCLOVA API를 호출하여 streaming 응답을 수신하고,
         누적된 텍스트를 하나의 문자열로 반환합니다.
+        (JSON 페이로드를 ensure_ascii=False로 덤프하여 UTF-8 바이트로 전송)
         """
+        # 1) JSON 문자열로 덤프 (ensure_ascii=False → 한글을 그대로 유지)
+        try:
+            json_str = json.dumps(completion_request, ensure_ascii=False)
+        except Exception as e:
+            # JSON 직렬화 단계에서 에러가 난 경우
+            return f"[Exception during JSON dump] {e}"
+
+        # 2) UTF-8로 인코딩된 바이트
+        payload_bytes = json_str.encode("utf-8")
+
         headers = {
             "Authorization": self._api_key,
             "X-NCP-CLOVASTUDIO-REQUEST-ID": self._request_id,
@@ -28,32 +39,38 @@ class CompletionExecutor:
 
         response_text = ""
         try:
+            # requests.post에서 json= 대신 data=payload_bytes를 사용
             with requests.post(
                 self._host + "/testapp/v3/chat-completions/HCX-005",
                 headers=headers,
-                json=completion_request,
+                data=payload_bytes,
                 stream=True,
-                timeout=30  # 혹시 타임아웃이 너무 짧으면 늘려보세요
+                timeout=30  # 타임아웃 조정 가능
             ) as r:
-                for line in r.iter_lines():
+                # 만약 HTTP 에러(예: 4xx, 5xx)가 발생하면 예외를 일으키도록
+                r.raise_for_status()
+
+                # decode_unicode=True: iter_lines가 바이트를 UTF-8로 디코딩해서 str로 줌
+                for line in r.iter_lines(decode_unicode=True):
                     if not line:
                         continue
-                    decoded = line.decode("utf-8").strip()
-                    # HyperCLOVA streaming 규격: "data: {…json…}" 또는 "data: [DONE]"
-                    if decoded.startswith("data: [DONE]"):
+                    # HyperCLOVA streaming 형식: "data: {…json…}" 또는 "data: [DONE]"
+                    if line.startswith("data: [DONE]"):
                         break
-                    if decoded.startswith("data: "):
-                        payload = decoded[len("data: "):]
+                    if line.startswith("data: "):
+                        payload = line[len("data: "):]
                         try:
                             chunk = json.loads(payload)
                             delta = chunk.get("choices", [])[0].get("delta", {})
                             text = delta.get("content", "")
                             response_text += text
                         except json.JSONDecodeError:
-                            # JSON 파싱 실패 시 payload 전체를 이어 붙임
+                            # JSON 파싱에 실패할 경우에도, payload 그대로 누적
                             response_text += payload
+        except requests.exceptions.HTTPError as http_err:
+            return f"[HTTP error] {http_err} (status {http_err.response.status_code})"
         except Exception as e:
-            # 네트워크 오류나 기타 예외가 발생했을 때, 빈 문자열 대신 예외 메시지를 반환
+            # 네트워크 오류, 디코딩 오류 등 기타 예외가 발생 시
             return f"[Exception during API call] {e}"
 
         return response_text
@@ -63,11 +80,12 @@ class CompletionExecutor:
 # 2) Streamlit 앱 세팅 (스타일 포함)
 # ----------------------------------------
 st.set_page_config(
-    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일) - Debug Mode",
+    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일) - UTF-8 Debug Mode",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
+# CSS 스타일: 카카오톡 UI 느낌 + 디버그 메시지 스타일
 st.markdown(
     """
     <style>
@@ -91,7 +109,7 @@ st.markdown(
         background-color: #FFFFFF;
         border-radius: 0 0 8px 8px;
         padding: 12px;
-        height: 50vh;  /* 디버그 메시지도 보이도록 높이를 약간 줄였습니다 */
+        height: 50vh;  /* 디버그 메시지를 함께 보이도록 약간 낮춤 */
         overflow-y: auto;
         border: 1px solid #E0E0E0;
     }
@@ -157,14 +175,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 상단 헤더
-st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일) - Debug Mode</div>', unsafe_allow_html=True)
+# 앱 상단 헤더
+st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일) - UTF-8 Debug Mode</div>', unsafe_allow_html=True)
 
 # ----------------------------------------
 # 3) 세션 상태 초기화: 예제 대화(사용자 + 어시스턴트) 미리 삽입
 # ----------------------------------------
 if "history" not in st.session_state:
-    # 예제: 사용자: "3곱하기 3은 뭐야?" → 어시스턴트: "안배워서 잘 모르겠어. 그게 뭐야?"
     st.session_state.history = [
         {"role": "user", "content": "3곱하기 3은 뭐야?"},
         {"role": "assistant", "content": "안배워서 잘 모르겠어. 그게 뭐야?"}
@@ -282,7 +299,6 @@ if submitted and user_input and user_input.strip():
     st.warning(f"🚨 [DEBUG] assistant 응답 내용:\n{bot_response}")
 
     # 4) 봇 응답을 히스토리에 “assistant” 역할로 추가
-    #    bot_response가 빈 문자열이라도, 키는 assistant로 추가
     if bot_response is None:
         bot_response = ""
     st.session_state.history.append({"role": "assistant", "content": bot_response})
