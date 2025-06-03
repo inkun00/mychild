@@ -178,7 +178,7 @@ left_col, right_col = st.columns([3, 1.5])  # 가로 폭 더 넓게
 
 # ---- 왼쪽: 챗봇 ----
 with left_col:
-    st.markdown("###내 아이 공부시키기")
+    st.markdown("### 내 아이 공부시키기")
     # 1. 채팅 히스토리 먼저
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
