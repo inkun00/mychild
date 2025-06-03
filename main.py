@@ -6,7 +6,7 @@ import requests
 import json
 
 # ----------------------------------------
-# 1) CompletionExecutor 클래스 (진단용 stream=False)
+# 1) CompletionExecutor 클래스 (content만 반환)
 # ----------------------------------------
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
@@ -26,32 +26,30 @@ class CompletionExecutor:
                 self._host + "/testapp/v3/chat-completions/HCX-005",
                 headers=headers,
                 json=completion_request,
-                stream=False,    # ★진단을 위해 stream 사용하지 않음★
+                stream=False,
                 timeout=30
             )
-            st.warning(f"[진단] HTTP status code: {r.status_code}")
-            st.warning(f"[진단] HTTP headers: {dict(r.headers)}")
-            st.warning(f"[진단] Response text (body): {r.text}")
-            try:
-                r.raise_for_status()
-            except Exception as e:
-                st.warning(f"[진단] HTTP Error: {e}")
-                return f"[HTTP Error: {e}]"
-            return r.text
+            r.raise_for_status()
+            # 응답 본문에서 assistant 메시지 content만 추출
+            data = r.json()
+            content = ""
+            if "result" in data and "message" in data["result"]:
+                msg = data["result"]["message"]
+                if isinstance(msg, dict) and "content" in msg:
+                    content = msg["content"]
+            return content
         except Exception as e:
-            st.warning(f"[진단] Exception during API call: {repr(e)}")
-            return f"[Exception during API call: {repr(e)}]"
+            return f"(에러: {repr(e)})"
 
 # ----------------------------------------
 # 2) Streamlit 앱 세팅 (스타일 포함)
 # ----------------------------------------
 st.set_page_config(
-    page_title="HyperCLOVA 챗봇 (진단 모드)",
+    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일)",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# CSS: 카카오톡 스타일
 st.markdown(
     """
     <style>
@@ -119,23 +117,12 @@ st.markdown(
     .send-button:hover {
         background-color: #FFD500;
     }
-    .debug {
-        background-color: #FFF8E1;
-        color: #000;
-        padding: 8px;
-        border-radius: 8px;
-        border: 1px solid #FFE082;
-        margin-top: 8px;
-        font-size: 0.9rem;
-        white-space: pre-wrap;
-    }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# 상단 헤더
-st.markdown('<div class="header">HyperCLOVA 챗봇 (진단 모드)</div>', unsafe_allow_html=True)
+st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일)</div>', unsafe_allow_html=True)
 
 # ----------------------------------------
 # 3) 세션 상태 초기화: 예제 대화
@@ -206,7 +193,7 @@ system_prompt = {
 }
 
 # ----------------------------------------
-# 6) 사용자 입력 처리 (폼) → API 호출 → 히스토리 업데이트 및 디버깅
+# 6) 사용자 입력 처리 (폼) → API 호출 → 히스토리 업데이트
 # ----------------------------------------
 with st.form(key="input_form", clear_on_submit=True):
     user_input = st.text_input(
@@ -217,16 +204,12 @@ with st.form(key="input_form", clear_on_submit=True):
     )
     submitted = st.form_submit_button("전송", use_container_width=True)
 
-st.warning(f"DEBUG submitted: {submitted} | user_input: {repr(user_input)}")
-
 if submitted and user_input and user_input.strip():
     st.session_state.history.append({"role": "user", "content": user_input})
 
     messages = [system_prompt]
     for msg in st.session_state.history:
         messages.append({"role": msg["role"], "content": msg["content"]})
-
-    st.warning(f"DEBUG API로 보내는 messages 리스트:\n{messages}")
 
     request_payload = {
         "messages": messages,
@@ -238,19 +221,13 @@ if submitted and user_input and user_input.strip():
         "stop": [],
         "includeAiFilters": True,
         "seed": 0,
-        "stream": False    # 진단을 위해 False
+        "stream": False
     }
 
     with st.spinner("응답을 받고 있습니다..."):
         bot_response = executor.get_response(request_payload)
 
-    st.warning(f"DEBUG bot_response (raw): {repr(bot_response)}")
-    st.warning(f"DEBUG bot_response 길이: {len(bot_response) if bot_response is not None else 'None'}")
-    st.warning(f"[DEBUG] assistant 응답 내용:\n{bot_response}")
-
-    # 실제 assistant 응답 추가(이후 stream True로 바꿀 때 참고)
-    if bot_response is None:
-        bot_response = ""
+    # content만 추출된 assistant 메시지를 히스토리에 저장
     st.session_state.history.append({"role": "assistant", "content": bot_response})
 
 # ----------------------------------------
