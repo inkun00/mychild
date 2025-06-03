@@ -1,137 +1,189 @@
+# app.py
 # -*- coding: utf-8 -*-
-"""
-Streamlit app: HyperCLOVA 챗봇 (KakaoTalk 스타일)
-• SSE 파싱 로직 개선 (event, token/result, error 완전 지원)
-• 빈 assistant 메시지 방지
-• 디버그 메시지 강화
-"""
 
-import json
-import requests
 import streamlit as st
-from typing import Dict, Any
+import requests
+import json
 
-# ------------------------------------------------------------------
-# 1) CompletionExecutor
-# ------------------------------------------------------------------
+# ----------------------------------------
+# 1) CompletionExecutor 클래스 (st.warning으로 디버깅)
+# ----------------------------------------
 class CompletionExecutor:
-    """HyperCLOVA X Chat-Completions Streaming wrapper"""
-
     def __init__(self, host: str, api_key: str, request_id: str):
-        self._host = host.rstrip("/")
+        self._host = host
         self._api_key = api_key
         self._request_id = request_id
 
-    # --------------------------------------------------------------
-    # Util: extract text from a single SSE JSON chunk
-    # --------------------------------------------------------------
-    @staticmethod
-    def _extract_text_from_chunk(chunk_json: Dict[str, Any]) -> str:
-        """
-        v3 Chat-Completions → chunk["choices"][0]["message"]["content"]
-        v1/v2 Text-Completions  → chunk["choices"][0]["text"]
-        """
-        choice = chunk_json.get("choices", [{}])[0]
-        message = choice.get("message", {})
-        if isinstance(message, dict) and message.get("content") is not None:
-            return message["content"]
-        return choice.get("text", "")
-
-    # --------------------------------------------------------------
-    # Main request method
-    # --------------------------------------------------------------
-    def get_response(self, completion_request: Dict[str, Any]) -> str:
+    def get_response(self, completion_request: dict) -> str:
         headers = {
-            "Authorization": self._api_key,               # "Bearer …"
+            "Authorization": self._api_key,
             "X-NCP-CLOVASTUDIO-REQUEST-ID": self._request_id,
             "Content-Type": "application/json; charset=utf-8",
-            "Accept": "text/event-stream",
+            "Accept": "text/event-stream"
         }
 
-        response_text: str = ""
-        current_event: str = "result"
-
+        response_text = ""
         try:
             with requests.post(
-                f"{self._host}/testapp/v3/chat-completions/HCX-005",
+                self._host + "/testapp/v3/chat-completions/HCX-005",
                 headers=headers,
                 json=completion_request,
                 stream=True,
-                timeout=60,
+                timeout=30
             ) as r:
-                r.raise_for_status()
+                try:
+                    r.raise_for_status()
+                except requests.exceptions.HTTPError as http_err:
+                    st.warning(f"[HTTP error: {http_err} (status {r.status_code})]")
+                    return f"[HTTP error: {http_err} (status {r.status_code})]"
 
-                for raw_line in r.iter_lines(decode_unicode=True):
-                    if raw_line == "":
-                        continue  # keep‑alive newline
-
-                    if raw_line.startswith("event:"):
-                        current_event = raw_line[len("event:"):].strip()
+                for raw_line in r.iter_lines():
+                    if not raw_line:
+                        continue
+                    try:
+                        line = raw_line.decode("utf-8").strip()
+                    except Exception as e:
+                        st.warning(f"[DecodeError: {repr(e)}]")
+                        response_text += f"[DecodeError: {repr(e)}]"
                         continue
 
-                    if raw_line.startswith("data:"):
-                        payload = raw_line[len("data:"):].strip()
-                        if payload == "[DONE]":
-                            break
-
+                    # HyperCLOVA streaming 규격: "data: {…json…}" 또는 "data: [DONE]"
+                    if line.startswith("data: [DONE]"):
+                        break
+                    if line.startswith("data: "):
+                        payload = line[len("data: "):]
                         try:
                             chunk = json.loads(payload)
-                        except json.JSONDecodeError:
-                            response_text += payload  # raw dump for debugging
-                            continue
-
-                        if current_event == "error":
-                            status = chunk.get("status", {})
-                            raise RuntimeError(f"SSE error {status.get('code')}: {status.get('message')}")
-
-                        if current_event in ("token", "result"):
-                            response_text += self._extract_text_from_chunk(chunk)
+                            st.warning(f"[DEBUG] chunk: {chunk}")
+                            if "choices" in chunk:
+                                delta = chunk.get("choices", [])[0].get("delta", {})
+                                st.warning(f"[DEBUG] delta: {delta}")
+                                text = delta.get("content", "")
+                                st.warning(f"[DEBUG] text: {text}")
+                                response_text += text
+                            else:
+                                st.warning(f"[DEBUG] payload without choices: {chunk}")
+                        except json.JSONDecodeError as e:
+                            st.warning(f"[JSONDecodeError]: {e}\npayload: {payload}")
+                            response_text += payload
 
         except requests.exceptions.HTTPError as http_err:
-            return f"[HTTP {http_err.response.status_code}] {http_err}"
+            st.warning(f"[HTTP error: {http_err} (status {http_err.response.status_code})]")
+            return f"[HTTP error: {http_err} (status {http_err.response.status_code})]"
         except Exception as e:
-            return f"[Exception] {e}"
+            st.warning(f"[Exception during API call: {repr(e)}]")
+            return f"[Exception during API call: {repr(e)}]"
 
         return response_text
 
 
-# ------------------------------------------------------------------
-# 2) Streamlit Layout & Style
-# ------------------------------------------------------------------
-
+# ----------------------------------------
+# 2) Streamlit 앱 세팅 (스타일 포함)
+# ----------------------------------------
 st.set_page_config(
-    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일) – UTF‑8 Fix",
+    page_title="HyperCLOVA 챗봇 (KakaoTalk 스타일) - UTF-8 Fix",
     layout="centered",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="collapsed"
 )
 
+# CSS: 카카오톡 UI + 디버그 영역
 st.markdown(
     """
     <style>
-    .reportview-container {background:#F5F5F7;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;}
-    .header {background:#FFEB00;padding:12px;border-radius:8px 8px 0 0;text-align:center;font-size:1.4rem;font-weight:bold;color:#333;}
-    .chat-container {background:#FFFFFF;border:1px solid #E0E0E0;border-radius:0 0 8px 8px;padding:12px;height:55vh;overflow-y:auto;}
-    .bubble-user {background:#FFEB00;color:#000;padding:8px 12px;border-radius:18px 18px 0 18px;display:inline-block;max-width:70%;margin-bottom:6px;float:right;clear:both;}
-    .bubble-assistant {background:#F0F0F0;color:#000;padding:8px 12px;border-radius:18px 18px 18px 0;display:inline-block;max-width:70%;margin-bottom:6px;float:left;clear:both;}
+    .reportview-container {
+        background-color: #F5F5F7;
+        font-family: "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif;
+    }
+    .header {
+        background-color: #FFEB00;
+        padding: 12px;
+        border-radius: 8px 8px 0 0;
+        text-align: center;
+        font-size: 1.4rem;
+        font-weight: bold;
+        color: #333;
+    }
+    .chat-container {
+        background-color: #FFFFFF;
+        border-radius: 0 0 8px 8px;
+        padding: 12px;
+        height: 50vh;
+        overflow-y: auto;
+        border: 1px solid #E0E0E0;
+    }
+    .bubble-user {
+        background-color: #FFEB00;
+        color: #000;
+        padding: 8px 12px;
+        border-radius: 18px 18px 0 18px;
+        display: inline-block;
+        max-width: 70%;
+        margin-bottom: 6px;
+        float: right;
+        clear: both;
+    }
+    .bubble-assistant {
+        background-color: #F0F0F0;
+        color: #000;
+        padding: 8px 12px;
+        border-radius: 18px 18px 18px 0;
+        display: inline-block;
+        max-width: 70%;
+        margin-bottom: 6px;
+        float: left;
+        clear: both;
+    }
+    .input-text {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #DDD;
+        border-radius: 18px;
+        font-size: 1rem;
+        outline: none;
+    }
+    .send-button {
+        background-color: #FFEB00;
+        border: none;
+        color: #000;
+        padding: 0 16px;
+        margin-left: 8px;
+        border-radius: 18px;
+        font-size: 1rem;
+        cursor: pointer;
+    }
+    .send-button:hover {
+        background-color: #FFD500;
+    }
+    .debug {
+        background-color: #FFF8E1;
+        color: #000;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #FFE082;
+        margin-top: 8px;
+        font-size: 0.9rem;
+        white-space: pre-wrap;
+    }
     </style>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
-st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일) – UTF‑8 Fix</div>', unsafe_allow_html=True)
+# 상단 헤더
+st.markdown('<div class="header">HyperCLOVA 챗봇 (KakaoTalk 스타일) - UTF-8 Fix</div>', unsafe_allow_html=True)
 
-# ------------------------------------------------------------------
-# 3) Session 초기화
-# ------------------------------------------------------------------
+# ----------------------------------------
+# 3) 세션 상태 초기화: 예제 대화(사용자 + 어시스턴트) 미리 삽입
+# ----------------------------------------
 if "history" not in st.session_state:
     st.session_state.history = [
         {"role": "user", "content": "3곱하기 3은 뭐야?"},
-        {"role": "assistant", "content": "안배워서 잘 모르겠어. 그게 뭐야?"},
+        {"role": "assistant", "content": "안배워서 잘 모르겠어. 그게 뭐야?"}
     ]
 
-# ------------------------------------------------------------------
-# 4) HyperCLOVA API 설정
-# ------------------------------------------------------------------
+# ----------------------------------------
+# 4) HyperCLOVA 호출용 기본 설정
+# ----------------------------------------
 HYPERCLOVA_HOST = "https://clovastudio.stream.ntruss.com"
 HYPERCLOVA_API_KEY = "Bearer nv-1ffa5328fe534e7290702280cbead54ew8Ez"
 HYPERCLOVA_REQUEST_ID = "ef47ef9bad6d4908a1552340b6b43d76"
@@ -139,12 +191,12 @@ HYPERCLOVA_REQUEST_ID = "ef47ef9bad6d4908a1552340b6b43d76"
 executor = CompletionExecutor(
     host=HYPERCLOVA_HOST,
     api_key=HYPERCLOVA_API_KEY,
-    request_id=HYPERCLOVA_REQUEST_ID,
+    request_id=HYPERCLOVA_REQUEST_ID
 )
 
-# ------------------------------------------------------------------
-# 5) System Prompt (FULL TEXT)
-# ------------------------------------------------------------------
+# ----------------------------------------
+# 5) 시스템 프롬프트 정의
+# ----------------------------------------
 system_prompt = {
     "role": "system",
     "content": (
@@ -188,30 +240,29 @@ system_prompt = {
     )
 }
 
-# ------------------------------------------------------------------
-# 6) Input Form
-# ------------------------------------------------------------------
+# ----------------------------------------
+# 6) 사용자 입력 처리 (폼) → API 호출 → 히스토리 업데이트 및 디버깅
+# ----------------------------------------
 with st.form(key="input_form", clear_on_submit=True):
     user_input = st.text_input(
-        "메시지를 입력하세요…",
+        "메시지를 입력하세요...",
         "",
         key="input_text",
-        placeholder="메시지를 입력하고 엔터를 누르세요",
+        placeholder="메시지를 입력하고 엔터를 누르거나 전송 버튼을 클릭하세요."
     )
     submitted = st.form_submit_button("전송", use_container_width=True)
 
-st.write("DEBUG submitted:", submitted, "| user_input:", repr(user_input))
+st.warning(f"DEBUG submitted: {submitted} | user_input: {repr(user_input)}")
 
-if submitted and user_input.strip():
-    # 기록 – 사용자
+if submitted and user_input and user_input.strip():
     st.session_state.history.append({"role": "user", "content": user_input})
 
-    # messages 배열 생성
-    messages = [system_prompt] + st.session_state.history
-    st.write("DEBUG API messages:")
-    st.write(messages)
+    messages = [system_prompt]
+    for msg in st.session_state.history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
 
-    # API 요청 바디
+    st.warning(f"DEBUG API로 보내는 messages 리스트:\n{messages}")
+
     request_payload = {
         "messages": messages,
         "topP": 0.8,
@@ -220,24 +271,27 @@ if submitted and user_input.strip():
         "temperature": 0.5,
         "repetitionPenalty": 1.1,
         "stop": [],
-        "includeAiFilters": False,
-        "stream": True,
+        "includeAiFilters": True,
+        "seed": 0,
+        "stream": True
     }
 
-    with st.spinner("응답 생성 중…"):
+    with st.spinner("응답을 받고 있습니다..."):
         bot_response = executor.get_response(request_payload)
 
-    st.write("DEBUG bot_response:", repr(bot_response))
+    st.warning(f"DEBUG bot_response (raw): {repr(bot_response)}")
+    st.warning(f"DEBUG bot_response 길이: {len(bot_response) if bot_response is not None else 'None'}")
 
-    # 기록 – assistant (빈 응답이면 기록하지 않음)
-    if bot_response:
-        st.session_state.history.append({"role": "assistant", "content": bot_response})
-    else:
-        st.session_state.history.append({"role": "assistant", "content": "[빈 응답]"})
+    st.warning(f"[DEBUG] assistant 응답 내용:\n{bot_response}")
 
-# ------------------------------------------------------------------
-# 7) Chat history rendering
-# ------------------------------------------------------------------
+    if bot_response is None:
+        bot_response = ""
+    st.session_state.history.append({"role": "assistant", "content": bot_response})
+
+
+# ----------------------------------------
+# 7) 채팅 기록 렌더링 (항상 실행됨)
+# ----------------------------------------
 chat_container = st.container()
 with chat_container:
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -245,9 +299,15 @@ with chat_container:
     for msg in st.session_state.history:
         if msg["role"] == "user":
             st.markdown(
-                f'<div class="bubble-user">{msg["content"]}</div><div style="clear:both"></div>',
-                unsafe_allow_html=True,
+                f'<div class="bubble-user">{msg["content"]}</div>'
+                '<div style="clear: both;"></div>',
+                unsafe_allow_html=True
             )
-        else:
+        elif msg["role"] == "assistant":
             st.markdown(
-                f'<
+                f'<div class="bubble-assistant">{msg["content"]}</div>'
+                '<div style="clear: both;"></div>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("</div>", unsafe_allow_html=True)
