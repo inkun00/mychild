@@ -14,7 +14,7 @@ class CompletionExecutor:
 
     def execute(self, completion_request):
         headers = {
-            'X-NCP-CLOVASTUDIO-API-KEY': self._api_key,
+            'Authorization': self._api_key,
             'X-NCP-CLOVASTUDIO-REQUEST-ID': self._request_id,  # self._request_id 사용
             'Content-Type': 'application/json; charset=utf-8',
             'Accept': 'text/event-stream'
