@@ -183,16 +183,14 @@ left_col, right_col = st.columns([3, 1.5])  # 가로 폭 더 넓게
 # ---- 왼쪽: 챗봇 ----
 with left_col:
     st.markdown("내 아이 공부시키기")
-    # 1. 채팅 히스토리 먼저
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
-    # 2. 대화내용과 입력창 사이: 아이의 지식 수준
+    # 생성 텍스트박스(아이의 지식 수준, 학습한 지식 분석)
     col_know1, col_know2 = st.columns(2)
     with col_know1:
         st.markdown("##### 아이의 지식 수준")
-        # HCX-005의 분석 결과 출력
         level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else "측정되지 않았어요"
         st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
     with col_know2:
@@ -200,7 +198,9 @@ with left_col:
         knowledge_content = st.session_state.learned_knowledge if st.session_state.learned_knowledge else "아직 학습한 지식이 없어요."
         st.text_area("학습 내용", knowledge_content, height=70, key="knowledge_content", disabled=True)
 
-    # 3. 입력창을 맨 아래로!
+    # 불필요한 여백 코드 완전 제거!
+
+    # 입력창(텍스트박스와 바로 붙여서)
     with st.form(key="input_form", clear_on_submit=True):
         user_input = st.text_input(
             "메시지를 입력하세요...",
@@ -234,9 +234,6 @@ with left_col:
         st.session_state.history.append({"role": "assistant", "content": bot_response})
 
         st.rerun()
-
-    # 입력창과 히스토리 사이 여백
-    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 
 # ---- 오른쪽: 학습한 지식 ----
 with right_col:
