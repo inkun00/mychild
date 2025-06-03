@@ -221,7 +221,7 @@ system_prompt = {
 left_col, right_col = st.columns([3, 1.5])
 
 with left_col:
-    st.markdown("내 아이 공부시키기")
+    st.markdown("##### 내 아이 공부시키기")
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
@@ -266,7 +266,7 @@ with left_col:
         st.rerun()
 
     if st.session_state.learned_knowledge:
-        if st.button("아이의 지식 수준 출력"):
+        if st.button("아이의 지식 수준 분석"):
             analyze_prompt = [
                 {"role": "system", "content":
                 "아래는 한 학생이 누적해서 배운 지식 목록이다.\n"
