@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import re
-import base64
+import urllib.parse
 
 # --- 페이지 wide 설정 및 최대 폭 확장 + 복사/붙여넣기/마우스 차단 ---
 st.set_page_config(page_title="HyperCLOVA 유치원 챗봇", layout="wide")
@@ -70,7 +70,7 @@ st.components.v1.html("""
     </script>
 """, height=10)
 
-# --------- 세션 상태 초기화 및 로컬(쿼리 파라미터)에서 학습한 지식 로드 ---------
+# --------- 세션 상태 초기화 및 쿠키에서 학습된 지식 로드 ---------
 if "history" not in st.session_state:
     st.session_state.history = []
 
@@ -80,21 +80,19 @@ if "learned_knowledge" not in st.session_state:
 if "knowledge_age_level" not in st.session_state:
     st.session_state.knowledge_age_level = ""
 
-# URL 쿼리 파라미터에서 'lk' 값(인코딩된 학습 지식)이 있으면 디코드하여 세션에 할당
+# 쿼리 파라미터로 전달된 'lk' 값이 있으면 디코딩하여 세션에 할당
 query_params = st.experimental_get_query_params()
 if "lk" in query_params:
-    encoded_lk = query_params["lk"][0]
+    encoded_text = query_params["lk"][0]
     try:
-        decoded_bytes = base64.urlsafe_b64decode(encoded_lk.encode("utf-8"))
-        decoded_str = decoded_bytes.decode("utf-8")
-        # 만약 세션에 아직 학습된 지식이 없으면, 쿼리에서 가져온 것을 할당
+        decoded_text = urllib.parse.unquote(encoded_text)
+        # 세션에 아직 학습된 지식이 없으면 쿼리에서 가져온 것을 할당
         if not st.session_state.learned_knowledge:
-            st.session_state.learned_knowledge = decoded_str
+            st.session_state.learned_knowledge = decoded_text
     except Exception:
-        # 디코딩 오류 시 무시
         pass
 
-# 코어 API 호출용 클래스
+# HyperCLOVA API 호출용 클래스
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
         self._host = host
@@ -285,7 +283,7 @@ with left_col:
         st.rerun()
 
     # ---------------------------------------------
-    # 아이의 지식 수준 분석 버튼 (요약 → 분석 → 로컬 저장 → 쿼리 파라미터 설정)
+    # 아이의 지식 수준 분석 버튼 (요약 → 분석)
     # ---------------------------------------------
     if st.session_state.history:
         if st.button("아이의 지식 수준 분석"):
@@ -297,7 +295,6 @@ with left_col:
                 elif msg["role"] == "assistant":
                     convo += f"어시스턴트: {msg['content']}\n"
 
-            # 요약 프롬프트
             summary_prompt = [
                 {"role": "system", "content":
                     "아래는 유치원생(어시스턴트)와 친구(사용자)의 대화 내용이야. "
@@ -326,15 +323,7 @@ with left_col:
             summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', new_summary)
             st.session_state.learned_knowledge = summary_with_newlines
 
-            # 2) 요약 결과를 로컬(쿼리 파라미터)에도 저장: base64로 인코딩 후 쿼리 파라미터에 설정
-            try:
-                encoded = base64.urlsafe_b64encode(summary_with_newlines.encode("utf-8")).decode("utf-8")
-                st.experimental_set_query_params(lk=encoded)
-            except Exception:
-                # 인코딩 실패 시 무시
-                pass
-
-            # 3) 방금 갱신된 learned_knowledge를 바탕으로 나이 계산 요청
+            # 2) 방금 갱신된 learned_knowledge를 바탕으로 나이 계산 요청
             analyze_prompt = [
                 {"role": "system", "content":
                     "아래는 한 학생이 누적해서 배운 지식 목록이다.\n"
@@ -380,6 +369,51 @@ with left_col:
         level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else ""
         st.text_area("지식 수준", level, height=70, key="knowledge_level_display", disabled=True)
 
+    # ---------------------------------------------
+    # 쿠키에 저장하는 버튼 (HTML + JS 삽입)
+    # ---------------------------------------------
+    if st.session_state.learned_knowledge:
+        # learned_knowledge 내용을 JS로 전달하려면, 작은 따옴표와 줄바꿈 등을 이스케이프 처리
+        escaped_text = st.session_state.learned_knowledge.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+        save_button_html = f"""
+        <div style="margin-top: 10px;">
+            <button id="save-knowledge">지식 저장</button>
+            <script>
+                document.getElementById('save-knowledge').onclick = function() {{
+                    const text = '{escaped_text}';
+                    document.cookie = "learned_knowledge=" + encodeURIComponent(text) + "; path=/";
+                    alert("학습된 지식을 쿠키에 저장했습니다.");
+                }};
+            </script>
+        </div>
+        """
+        st.components.v1.html(save_button_html, height=60)
+
+    # ---------------------------------------------
+    # 쿠키에서 읽어서 쿼리 파라미터로 넘겨주는 JS (페이지 로드 시)
+    # ---------------------------------------------
+    cookie_loader_js = """
+    <script>
+    (function() {
+        // URL에 이미 'lk' 파라미터가 있으면 넘어가지 않음
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('lk')) {
+            return;
+        }
+        // 쿠키에서 learned_knowledge 값 찾기
+        const cookies = document.cookie.split(';').map(c => c.trim());
+        const kv = cookies.find(c => c.startsWith('learned_knowledge='));
+        if (kv) {
+            const encoded = kv.split('=')[1];
+            // 쿼리 파라미터 없이 페이지 새로고침
+            const newUrl = window.location.pathname + '?lk=' + encoded;
+            window.location.replace(newUrl);
+        }
+    })();
+    </script>
+    """
+    st.components.v1.html(cookie_loader_js, height=0)
+
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
     if st.button("학습한 지식 보기"):
@@ -409,13 +443,6 @@ with right_col:
             summary = executor.get_response(summary_payload)
         summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', summary)
         st.session_state.learned_knowledge = summary_with_newlines
-
-        # 요약 결과를 로컬(쿼리 파라미터)에도 저장
-        try:
-            encoded = base64.urlsafe_b64encode(summary_with_newlines.encode("utf-8")).decode("utf-8")
-            st.experimental_set_query_params(lk=encoded)
-        except Exception:
-            pass
 
         st.rerun()
 
