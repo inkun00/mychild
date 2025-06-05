@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import re
+import base64
 
 # --- 페이지 wide 설정 및 최대 폭 확장 + 복사/붙여넣기/마우스 차단 ---
 st.set_page_config(page_title="HyperCLOVA 유치원 챗봇", layout="wide")
@@ -69,7 +70,31 @@ st.components.v1.html("""
     </script>
 """, height=10)
 
-# --------- 이하 기존 챗봇/Streamlit 코드 ---------
+# --------- 세션 상태 초기화 및 로컬(쿼리 파라미터)에서 학습한 지식 로드 ---------
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+if "learned_knowledge" not in st.session_state:
+    st.session_state.learned_knowledge = ""
+
+if "knowledge_age_level" not in st.session_state:
+    st.session_state.knowledge_age_level = ""
+
+# URL 쿼리 파라미터에서 'lk' 값(인코딩된 학습 지식)이 있으면 디코드하여 세션에 할당
+query_params = st.experimental_get_query_params()
+if "lk" in query_params:
+    encoded_lk = query_params["lk"][0]
+    try:
+        decoded_bytes = base64.urlsafe_b64decode(encoded_lk.encode("utf-8"))
+        decoded_str = decoded_bytes.decode("utf-8")
+        # 만약 세션에 아직 학습된 지식이 없으면, 쿼리에서 가져온 것을 할당
+        if not st.session_state.learned_knowledge:
+            st.session_state.learned_knowledge = decoded_str
+    except Exception:
+        # 디코딩 오류 시 무시
+        pass
+
+# 코어 API 호출용 클래스
 class CompletionExecutor:
     def __init__(self, host: str, api_key: str, request_id: str):
         self._host = host
@@ -102,6 +127,7 @@ class CompletionExecutor:
         except Exception as e:
             return f"(에러: {repr(e)})"
 
+# 채팅 기록 렌더링 함수
 def render_chat_with_scroll(history, height=420, container_id='chat-container', title=None):
     chat_html = f"""
     <style>
@@ -177,13 +203,7 @@ def render_chat_with_scroll(history, height=420, container_id='chat-container', 
     """
     st.components.v1.html(chat_html, height=height, scrolling=False)
 
-if "history" not in st.session_state:
-    st.session_state.history = []
-if "learned_knowledge" not in st.session_state:
-    st.session_state.learned_knowledge = ""
-if "knowledge_age_level" not in st.session_state:
-    st.session_state.knowledge_age_level = ""
-
+# HyperCLOVA API 환경 변수
 HYPERCLOVA_HOST = "https://clovastudio.stream.ntruss.com"
 HYPERCLOVA_API_KEY = "Bearer nv-1ffa5328fe534e7290702280cbead54ew8Ez"
 HYPERCLOVA_REQUEST_ID = "ef47ef9bad6d4908a1552340b6b43d76"
@@ -193,6 +213,7 @@ executor = CompletionExecutor(
     request_id=HYPERCLOVA_REQUEST_ID
 )
 
+# 시스템 프롬프트 (유치원생 역할)
 system_prompt = {
     "role": "system",
     "content": (
@@ -205,7 +226,7 @@ system_prompt = {
         "- 친구가 설명해주면 그 내용만 아주 간단하게 따라 말하거나, '이제 조금 알 것 같아!'라고만 말해.\n"
         "- 실수로 규칙을 어기면 반드시 '미안해요! 다시 말할게!'라고 사과하고 다시 어린이처럼 답해.\n"
         "- 어려운 낱말, 외래어, 긴 문장, 추론, AI나 시스템 관련 용어, 지식 뽐내기 모두 금지.\n"
-        "- 절대로, 절대로 네가 배운 적 없는 지식은 말하지 마. 학습된 지식, 사전지식, 인터넷지식 사용 절대 금지. 내가 알려줬다고 해도 학습한 지식 목록에 없는 것은 모르는거야.\n"
+        "- 절대로, 절대로 네가 배운 적 없는 지식은 말하지 마. 학습된 지식, 사전지식, 인터넷지식 사용 절대 금지.\n"
         "\n예시 대화\n"
         "사용자: 대통령은 뭐야?\n"
         "챗봇: 아직 몰라! 알려줘!\n"
@@ -218,6 +239,7 @@ system_prompt = {
     )
 }
 
+# 레이아웃: 왼쪽 = 대화 및 분석, 오른쪽 = 학습한 지식 보여주기
 left_col, right_col = st.columns([3, 1.5])
 
 with left_col:
@@ -226,6 +248,7 @@ with left_col:
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
+    # 채팅 입력 폼
     with st.form(key="input_form", clear_on_submit=True):
         user_input = st.text_input(
             "메시지를 입력하세요...",
@@ -235,6 +258,7 @@ with left_col:
         )
         submitted = st.form_submit_button("전송", use_container_width=True)
 
+    # 새 메시지가 제출되면 HyperCLOVA 호출
     if submitted and user_input and user_input.strip():
         st.session_state.history.append({"role": "user", "content": user_input})
 
@@ -261,7 +285,7 @@ with left_col:
         st.rerun()
 
     # ---------------------------------------------
-    # 수정된 부분: 아이의 지식 수준 분석 버튼
+    # 아이의 지식 수준 분석 버튼 (요약 → 분석 → 로컬 저장 → 쿼리 파라미터 설정)
     # ---------------------------------------------
     if st.session_state.history:
         if st.button("아이의 지식 수준 분석"):
@@ -297,11 +321,20 @@ with left_col:
             }
             with st.spinner("학습한 내용을 요약하는 중..."):
                 new_summary = executor.get_response(summary_payload)
+
             # 줄바꿈 처리
             summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', new_summary)
             st.session_state.learned_knowledge = summary_with_newlines
 
-            # 2) 방금 갱신된 learned_knowledge를 바탕으로 나이 계산 요청
+            # 2) 요약 결과를 로컬(쿼리 파라미터)에도 저장: base64로 인코딩 후 쿼리 파라미터에 설정
+            try:
+                encoded = base64.urlsafe_b64encode(summary_with_newlines.encode("utf-8")).decode("utf-8")
+                st.experimental_set_query_params(lk=encoded)
+            except Exception:
+                # 인코딩 실패 시 무시
+                pass
+
+            # 3) 방금 갱신된 learned_knowledge를 바탕으로 나이 계산 요청
             analyze_prompt = [
                 {"role": "system", "content":
                     "아래는 한 학생이 누적해서 배운 지식 목록이다.\n"
@@ -340,12 +373,12 @@ with left_col:
             st.rerun()  # 갱신된 내용 반영
 
     # ---------------------------------------------
-    # 기본 화면에 학습된 지식과 나이 표시
+    # 화면에 학습된 지식과 계산된 나이 표시
     # ---------------------------------------------
     if st.session_state.learned_knowledge:
         st.markdown("##### 아이의 지식 수준")
         level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else ""
-        st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
+        st.text_area("지식 수준", level, height=70, key="knowledge_level_display", disabled=True)
 
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
@@ -376,6 +409,13 @@ with right_col:
             summary = executor.get_response(summary_payload)
         summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', summary)
         st.session_state.learned_knowledge = summary_with_newlines
+
+        # 요약 결과를 로컬(쿼리 파라미터)에도 저장
+        try:
+            encoded = base64.urlsafe_b64encode(summary_with_newlines.encode("utf-8")).decode("utf-8")
+            st.experimental_set_query_params(lk=encoded)
+        except Exception:
+            pass
 
         st.rerun()
 
