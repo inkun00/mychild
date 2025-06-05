@@ -81,7 +81,7 @@ if "knowledge_age_level" not in st.session_state:
     st.session_state.knowledge_age_level = ""
 
 # 쿼리 파라미터로 전달된 'lk' 값이 있으면 디코딩하여 세션에 할당
-query_params = st.experimental_get_query_params()
+query_params = st.query_params()
 if "lk" in query_params:
     encoded_text = query_params["lk"][0]
     try:
