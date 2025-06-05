@@ -265,21 +265,64 @@ with left_col:
 
         st.rerun()
 
-    if st.session_state.learned_knowledge:
+    # ---------------------------------------------
+    # 수정된 부분: 아이의 지식 수준 분석 버튼
+    # ---------------------------------------------
+    if "learned_knowledge" in st.session_state or st.session_state.history:
         if st.button("아이의 지식 수준 분석"):
+            # 1) 최신 대화(history)를 기반으로 learned_knowledge(요약) 갱신
+            convo = ""
+            for msg in st.session_state.history:
+                if msg["role"] == "user":
+                    convo += f"사용자: {msg['content']}\n"
+                elif msg["role"] == "assistant":
+                    convo += f"어시스턴트: {msg['content']}\n"
+
+            # 요약 프롬프트
+            summary_prompt = [
+                {"role": "system", "content":
+                    "아래는 유치원생(어시스턴트)와 친구(사용자)의 대화 내용이야. "
+                    "어시스턴트가 친구(사용자)에게서 배운 지식만 **개조식으로** 요약해줘. "
+                    "각 줄의 맨 앞에 '-'를 붙이고, 불필요한 인삿말·감사표현·질문·설명은 빼고, "
+                    "실제로 이해한 핵심 지식·사실만 3~7줄로 정리해."
+                },
+                {"role": "user", "content": convo}
+            ]
+            summary_payload = {
+                "messages": summary_prompt,
+                "topP": 0.8,
+                "topK": 0,
+                "maxTokens": 300,
+                "temperature": 0.5,
+                "repetitionPenalty": 1.05,
+                "stop": [],
+                "includeAiFilters": True,
+                "seed": 0,
+                "stream": False
+            }
+            with st.spinner("학습한 내용을 요약하는 중..."):
+                new_summary = executor.get_response(summary_payload)
+            # 줄바꿈 처리
+            summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', new_summary)
+            st.session_state.learned_knowledge = summary_with_newlines
+
+            # 2) 방금 갱신된 learned_knowledge를 바탕으로 나이 계산 요청
             analyze_prompt = [
                 {"role": "system", "content":
-                "아래는 한 학생이 누적해서 배운 지식 목록이다.\n"
-                "오직 이 목록의 전체 내용을 바탕으로, 대한민국 교육과정(초등~고등) 기준에서 평균적인 학생이 모두 이해할 수 있는 최소 나이를 '몇 살 몇 개월'만으로, 1개만, 다른 말 없이 출력하라.\n"
-                "학습한 지식 목록의 내용을 분석해서 대한민국 나이 기준으로 몇 살 정도의 지식 수준을 갖고 있는지 출력하라.\n"
-                "추가설명, 여러 개의 나이, 부연, 문장 금지. 반드시 한 줄, 예시 형식만. (예: 11살 0개월)\n\n"
-                "예시:\n"
-                "- 구구단 문제: 9살\n"
-                "- 덧셈/뺄셈만 있을 때: 8살 0개월\n"
-                "- 분수의 사칙연산, 원소기호, 도형의 둘레, 넓이까지 있으면: 11살 0개월\n"
-                "- 피타고라스 정리, 소인수분해, 함수 개념 있으면: 14살 0개월\n"
-                "- 삼각함수, 미적분, 통계, 확률: 17살 0개월\n\n"
-                "나이 하나만 답하라."
+                    "아래는 한 학생이 누적해서 배운 지식 목록이다.\n"
+                    "오직 이 목록의 전체 내용을 바탕으로, 대한민국 교육과정(초등~고등) 기준에서 "
+                    "평균적인 학생이 모두 이해할 수 있는 최소 나이를 '몇 살 몇 개월'만으로, 1개만, "
+                    "다른 말 없이 출력하라.\n"
+                    "학습한 지식 목록의 내용을 분석해서 대한민국 나이 기준으로 "
+                    "몇 살 정도의 지식 수준을 갖고 있는지 출력하라.\n"
+                    "추가설명, 여러 개의 나이, 부연, 문장 금지. 반드시 한 줄, 예시 형식만. (예: 11살 0개월)\n\n"
+                    "예시:\n"
+                    "- 구구단 문제: 9살\n"
+                    "- 덧셈/뺄셈만 있을 때: 8살 0개월\n"
+                    "- 분수의 사칙연산, 원소기호, 도형의 둘레, 넓이까지 있으면: 11살 0개월\n"
+                    "- 피타고라스 정리, 소인수분해, 함수 개념 있으면: 14살 0개월\n"
+                    "- 삼각함수, 미적분, 통계, 확률: 17살 0개월\n\n"
+                    "나이 하나만 답하라."
                 },
                 {"role": "user", "content": f"<학습한 지식 목록>\n{st.session_state.learned_knowledge}"}
             ]
@@ -298,7 +341,16 @@ with left_col:
             with st.spinner("지식 수준을 분석하는 중..."):
                 age_level = executor.get_response(analyze_payload)
             st.session_state.knowledge_age_level = age_level.strip()
-            st.rerun()
+
+            st.rerun()  # 갱신된 내용 반영
+
+    # ---------------------------------------------
+    # 기본 화면에 학습된 지식과 나이 표시
+    # ---------------------------------------------
+    if st.session_state.learned_knowledge:
+        st.markdown("##### 아이의 지식 수준")
+        level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else ""
+        st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
 
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
