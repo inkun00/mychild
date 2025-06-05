@@ -70,7 +70,7 @@ st.components.v1.html("""
     </script>
 """, height=10)
 
-# --------- 세션 상태 초기화 및 쿠키에서 학습된 지식 로드 ---------
+# --------- 세션 상태 초기화 ---------
 if "history" not in st.session_state:
     st.session_state.history = []
 
@@ -80,13 +80,35 @@ if "learned_knowledge" not in st.session_state:
 if "knowledge_age_level" not in st.session_state:
     st.session_state.knowledge_age_level = ""
 
-# 쿼리 파라미터로 전달된 'lk' 값이 있으면 디코딩하여 세션에 할당
+# --- 페이지 로드시 쿠키에 'learned_knowledge' 값이 있으면, 자동으로 URL에 쿼리 파라미터 '?lk=...' 를 붙여서 리로딩 ---
+cookie_loader_js = """
+<script>
+(function() {
+    // 이미 URL에 'lk' 파라미터가 있으면 쿠키 읽기 과정을 생략
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('lk')) {
+        return;
+    }
+    // document.cookie에서 'learned_knowledge' 키 찾기
+    const cookies = document.cookie.split(';').map(c => c.trim());
+    const kv = cookies.find(c => c.startsWith('learned_knowledge='));
+    if (kv) {
+        const encoded = kv.split('=')[1];
+        // URL에 '?lk=<값>' 을 붙여서 리로딩
+        const newUrl = window.location.pathname + '?lk=' + encoded;
+        window.location.replace(newUrl);
+    }
+})();
+</script>
+"""
+st.components.v1.html(cookie_loader_js, height=0)
+
+# --- 쿼리 파라미터 'lk'에 인코딩된 텍스트가 있으면, 세션 상태로 꺼내오기 ---
 query_params = st.query_params
 if "lk" in query_params:
     encoded_text = query_params["lk"][0]
     try:
         decoded_text = urllib.parse.unquote(encoded_text)
-        # 세션에 아직 학습된 지식이 없으면 쿼리에서 가져온 것을 할당
         if not st.session_state.learned_knowledge:
             st.session_state.learned_knowledge = decoded_text
     except Exception:
@@ -370,10 +392,10 @@ with left_col:
         st.text_area("지식 수준", level, height=70, key="knowledge_level_display", disabled=True)
 
     # ---------------------------------------------
-    # 쿠키에 저장하는 버튼 (HTML + JS 삽입)
+    # 쿠키에 저장하는 버튼 ("지식 저장")
     # ---------------------------------------------
     if st.session_state.learned_knowledge:
-        # learned_knowledge 내용을 JS로 전달하려면, 작은 따옴표와 줄바꿈 등을 이스케이프 처리
+        # JS로 쿠키에 learned_knowledge 값을 저장
         escaped_text = st.session_state.learned_knowledge.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
         save_button_html = f"""
         <div style="margin-top: 10px;">
@@ -381,41 +403,20 @@ with left_col:
             <script>
                 document.getElementById('save-knowledge').onclick = function() {{
                     const text = '{escaped_text}';
-                    document.cookie = "learned_knowledge=" + encodeURIComponent(text) + "; path=/";
-                    alert("학습된 지식을 쿠키에 저장했습니다.");
+                    // 쿠키에 7일간 유지되도록 설정 (path=/ 으로 전체 도메인에 적용)
+                    const expires = new Date();
+                    expires.setDate(expires.getDate() + 7);
+                    document.cookie = "learned_knowledge=" + encodeURIComponent(text) + "; expires=" + expires.toUTCString() + "; path=/";
+                    alert("학습한 지식을 쿠키에 저장했습니다.");
                 }};
             </script>
         </div>
         """
         st.components.v1.html(save_button_html, height=60)
 
-    # ---------------------------------------------
-    # 쿠키에서 읽어서 쿼리 파라미터로 넘겨주는 JS (페이지 로드 시)
-    # ---------------------------------------------
-    cookie_loader_js = """
-    <script>
-    (function() {
-        // URL에 이미 'lk' 파라미터가 있으면 넘어가지 않음
-        const params = new URLSearchParams(window.location.search);
-        if (params.has('lk')) {
-            return;
-        }
-        // 쿠키에서 learned_knowledge 값 찾기
-        const cookies = document.cookie.split(';').map(c => c.trim());
-        const kv = cookies.find(c => c.startsWith('learned_knowledge='));
-        if (kv) {
-            const encoded = kv.split('=')[1];
-            // 쿼리 파라미터 없이 페이지 새로고침
-            const newUrl = window.location.pathname + '?lk=' + encoded;
-            window.location.replace(newUrl);
-        }
-    })();
-    </script>
-    """
-    st.components.v1.html(cookie_loader_js, height=0)
-
 with right_col:
     st.markdown("### 내 아이가 학습한 지식")
+    # “학습한 지식 보기” 버튼을 눌렀을 때 요약을 새로 생성하고 session_state에 반영
     if st.button("학습한 지식 보기"):
         convo = ""
         for msg in st.session_state.history:
@@ -446,6 +447,7 @@ with right_col:
 
         st.rerun()
 
+    # 세션 상태에 들어가 있는 learned_knowledge를 화면에 표시
     if st.session_state.learned_knowledge:
         knowledge_history = [{"role": "assistant", "content": st.session_state.learned_knowledge}]
         render_chat_with_scroll(knowledge_history, height=220, container_id='chat-container-knowledge', title=None)
