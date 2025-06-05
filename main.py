@@ -226,11 +226,6 @@ with left_col:
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
 
-    if st.session_state.learned_knowledge:
-        st.markdown("##### 아이의 지식 수준")
-        level = st.session_state.knowledge_age_level if st.session_state.knowledge_age_level else ""
-        st.text_area("지식 수준", level, height=70, key="knowledge_level", disabled=True)
-
     with st.form(key="input_form", clear_on_submit=True):
         user_input = st.text_input(
             "메시지를 입력하세요...",
@@ -268,7 +263,7 @@ with left_col:
     # ---------------------------------------------
     # 수정된 부분: 아이의 지식 수준 분석 버튼
     # ---------------------------------------------
-    if "learned_knowledge" in st.session_state or st.session_state.history:
+    if st.session_state.history:
         if st.button("아이의 지식 수준 분석"):
             # 1) 최신 대화(history)를 기반으로 learned_knowledge(요약) 갱신
             convo = ""
