@@ -221,7 +221,7 @@ system_prompt = {
 left_col, right_col = st.columns([3, 1.5])
 
 with left_col:
-    st.markdown("##### 내 아이 공부시키기")
+    st.markdown("### 내 아이 공부시키기")
     render_chat_with_scroll(
         st.session_state.history, height=540, container_id='chat-container-main', title=None
     )
