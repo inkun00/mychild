@@ -363,7 +363,7 @@ with left_col:
                     "- 삼각함수, 미적분, 통계, 확률: 17살 0개월\n\n"
                     "나이 하나만 답하라."
                 },
-                {"role": "user", "content": f"<학습한 지식 목록>\n{st.session_state.learned_knowledge}"}
+                {"role": "user", "content": f"<学습한 지식 목록>\n{st.session_state.learned_knowledge}"}
             ]
             analyze_payload = {
                 "messages": analyze_prompt,
@@ -395,7 +395,6 @@ with left_col:
     # 쿠키에 저장하는 버튼 ("지식 저장")
     # ---------------------------------------------
     if st.session_state.learned_knowledge:
-        # JS로 쿠키에 learned_knowledge 값을 저장
         escaped_text = st.session_state.learned_knowledge.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
         save_button_html = f"""
         <div style="margin-top: 10px;">
@@ -403,7 +402,6 @@ with left_col:
             <script>
                 document.getElementById('save-knowledge').onclick = function() {{
                     const text = '{escaped_text}';
-                    // 쿠키에 7일간 유지되도록 설정 (path=/ 으로 전체 도메인에 적용)
                     const expires = new Date();
                     expires.setDate(expires.getDate() + 7);
                     document.cookie = "learned_knowledge=" + encodeURIComponent(text) + "; expires=" + expires.toUTCString() + "; path=/";
@@ -444,6 +442,17 @@ with right_col:
             summary = executor.get_response(summary_payload)
         summary_with_newlines = re.sub(r'([.!?])\s*', r'\1\n', summary)
         st.session_state.learned_knowledge = summary_with_newlines
+
+        # 자동으로 쿠키에 저장
+        escaped = summary_with_newlines.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+        cookie_js = f"""
+        <script>
+            const expires = new Date();
+            expires.setDate(expires.getDate() + 7);
+            document.cookie = "learned_knowledge=" + encodeURIComponent('{escaped}') + "; expires=" + expires.toUTCString() + "; path=/";
+        </script>
+        """
+        st.components.v1.html(cookie_js, height=0)
 
         st.rerun()
 
