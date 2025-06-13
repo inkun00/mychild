@@ -183,9 +183,4 @@ with left:
             "seed": 0,
             "stream": False
         }
-        with st.spinner("응답을 받고 있습니다..."):
-            bot = executor.get_response(payload)
-        st.session_state.history.append({"role": "assistant", "content": bot})
-
-        # **3) 대화로 학습된 지식이 업데이트되면 쿠키에도 추가 반영**
-        if st.session_state.learned_knowledge:
+        with st.spinner("응답을 받고 있습니다..."):``
