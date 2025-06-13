@@ -181,7 +181,7 @@ with left:
         if st.session_state.learned_knowledge:
             update_cookie_js(st.session_state.learned_knowledge)
 
-        st.experimental_rerun()
+        st.rerun()
 
     # 지식 수준 분석 버튼
     if st.session_state.history and st.button("아이의 지식 수준 분석"):
@@ -212,9 +212,9 @@ with left:
         # ① 쿠키에 저장, ② URL 쿼리에도 심기
         update_cookie_js(summ_nl)
         enc = urllib.parse.quote(summ_nl)
-        st.experimental_set_query_params(lk=enc)
+        st.set_query_params(lk=enc)
 
-        st.experimental_rerun()
+        st.rerun()
 
     # 학습된 지식 & 나이 표시
     if st.session_state.learned_knowledge:
@@ -224,7 +224,7 @@ with left:
 with right:
     st.markdown("### 내 아이가 학습한 지식")
     if st.button("학습한 지식 보기"):
-        st.experimental_rerun()
+        st.rerun()
 
     if st.session_state.learned_knowledge:
         render_chat(
