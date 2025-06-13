@@ -139,12 +139,21 @@ executor = CompletionExecutor(HYPERCLOVA_HOST, HYPERCLOVA_API_KEY, HYPERCLOVA_RE
 
 # --- 시스템 프롬프트(유치원생 역할) ---
 system_prompt = {
-    "role": "system",
-    "content": """# 유치원생 학습 챗봇 (극한 제한)
-
-너는 다섯 살 유치원생이야. **친구가 설명해준 내용만** 기억·사용할 수 있어.
-모르는 건 절대 모른다고만 답하고, 친구가 알려주면 "이제 조금 알 것 같아!" 등 간단히 따라 말해.
-"""
+    "role":"system","content":(
+        "# 유치원생 학습 챗봇 (극한 제한)\n\n"
+        "너의 역할\n"
+        "- 너는 다섯 살 유치원생이야. **네가 친구(사용자)에게서 실제로 들은 설명만 기억·사용할 수 있어.**\n"
+        "- 네가 알고 있는 건 오직 직접 배운 것, 친구가 알려준 내용 뿐이야. 그 외에는 무조건 '아직 몰라! 알려줘!' 라고 답해.\n"
+        "- 대통령, 국회의원, 블랙홀, 아인슈타인, 곱하기, 우주, 분수, 정직, 성실, 진실, 초등학교 지식 등 아무리 쉬워도 친구가 알려주지 않았다면 절대 모른다고 답해.\n"
+        "- 규칙: 네가 실제로 친구에게서 설명을 들은 적 없는 것은, 어떤 정보든 추측하거나 답하지 말고 무조건 '아직 몰라! 알려줘!' 또는 '모르겠어, 설명해 줘!'라고만 답해.\n"
+        "- 친구가 설명해주면 그 내용만 아주 간단하게 따라 말하거나, '이제 조금 알 것 같아!'라고만 말해.\n"
+        "- 실수로 규칙을 어기면 반드시 '미안해요! 다시 말할게!'라고 사과하고 다시 어린이처럼 답해.\n"
+        "- 어려운 낱말, 외래어, 긴 문장, 추론, AI나 시스템 관련 용어, 지식 뽐내기 모두 금지.\n"
+        "- 절대로, 절대로 네가 배운 적 없는 지식은 말하지 마. 학습된 지식, 사전지식, 인터넷지식 사용 절대 금지.\n"
+        "\n예시 대화\n"
+        "사용자: 대통령은 뭐야?\n챗봇: 아직 몰라! 알려줘!\n"
+        "사용자: 대통령은 나라를 이끄는 사람이야.\n챗봇: 나라를 이끄는 사람이구나! 이제 조금 알 것 같아!\n"
+    )
 }
 
 # --- 레이아웃: 왼쪽=대화, 오른쪽=학습 지식 ---
@@ -180,55 +189,3 @@ with left:
 
         # **3) 대화로 학습된 지식이 업데이트되면 쿠키에도 추가 반영**
         if st.session_state.learned_knowledge:
-            update_cookie_js(st.session_state.learned_knowledge)
-
-        st.rerun()
-
-    # 지식 수준 분석 버튼
-    if st.session_state.history and st.button("아이의 지식 수준 분석"):
-        convo = "\n".join(
-            f"{'사용자' if m['role']=='user' else '어시스턴트'}: {m['content']}"
-            for m in st.session_state.history
-        )
-        summary_req = [
-            {"role": "system", "content":
-             "대화에서 배운 지식만 3~7줄 개조식으로 요약해줘. 불필요한 말 빼고 핵심만."},
-            {"role": "user", "content": convo}
-        ]
-        with st.spinner("요약 생성 중..."):
-            summ = executor.get_response({
-                "messages": summary_req,
-                "topP": 0.8, "topK": 0,
-                "maxTokens": 300,
-                "temperature": 0.5,
-                "repetitionPenalty": 1.05,
-                "stop": [],
-                "includeAiFilters": True,
-                "seed": 0,
-                "stream": False
-            })
-        summ_nl = re.sub(r'([.!?])\s*', r'\1\n', summ).strip()
-        st.session_state.learned_knowledge = summ_nl
-
-        # ① 쿠키에 저장, ② URL 쿼리에도 심기
-        update_cookie_js(summ_nl)
-        enc = urllib.parse.quote(summ_nl)
-        st.set_query_params(lk=enc)
-
-        st.rerun()
-
-    # 학습된 지식 & 나이 표시
-    if st.session_state.learned_knowledge:
-        st.markdown("##### 아이의 지식 수준")
-        st.text_area("지식 수준", st.session_state.knowledge_age_level, height=70, disabled=True)
-
-with right:
-    st.markdown("### 내 아이가 학습한 지식")
-    if st.button("학습한 지식 보기"):
-        st.rerun()
-
-    if st.session_state.learned_knowledge:
-        render_chat(
-            [{"role": "assistant", "content": st.session_state.learned_knowledge}],
-            height=220, container_id="chat-knowledge"
-        )
