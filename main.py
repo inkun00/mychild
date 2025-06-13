@@ -62,7 +62,7 @@ cookie_loader_js = """
 st.components.v1.html(cookie_loader_js, height=0)
 
 # --- 2) URL 쿼리파라미터에서 lk 값을 가져와 세션에 복원 ---
-params = st.experimental_get_query_params()
+params = st.query_params  # ← experimental_get_query_params → query_params 로 교체
 if "lk" in params and params["lk"]:
     try:
         decoded = urllib.parse.unquote(params["lk"][0])
@@ -179,8 +179,6 @@ with left:
 
         # **3) 대화로 학습된 지식이 업데이트되면 쿠키에도 추가 반영**
         if st.session_state.learned_knowledge:
-            # 기존 learned_knowledge 뒤에 새 요약을 덧붙이려면 여기서 처리
-            # 예: st.session_state.learned_knowledge += "\n" + "<새로 배운 내용>"
             update_cookie_js(st.session_state.learned_knowledge)
 
         st.experimental_rerun()
@@ -216,7 +214,6 @@ with left:
         enc = urllib.parse.quote(summ_nl)
         st.experimental_set_query_params(lk=enc)
 
-        # 나이 분석은 생략(기존 로직 유지)
         st.experimental_rerun()
 
     # 학습된 지식 & 나이 표시
@@ -226,7 +223,6 @@ with left:
 
 with right:
     st.markdown("### 내 아이가 학습한 지식")
-    # “학습한 지식 보기” 버튼을 누르면 세션에 이미 복원된 상태 → 단순 rerun
     if st.button("학습한 지식 보기"):
         st.experimental_rerun()
 
