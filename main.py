@@ -62,7 +62,7 @@ cookie_loader_js = """
 st.components.v1.html(cookie_loader_js, height=0)
 
 # --- 2) URL 쿼리파라미터에서 lk 값을 가져와 세션에 복원 ---
-params = st.get_query_params()
+params = st.query_params()
 if "lk" in params and params["lk"]:
     try:
         decoded = urllib.parse.unquote(params["lk"][0])
